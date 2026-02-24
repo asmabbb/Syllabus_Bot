@@ -1,4 +1,4 @@
-from database.connection import get_connection
+from bot.database.connection import get_connection
 
 def init_db():
     conn = get_connection()
