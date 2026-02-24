@@ -1,4 +1,4 @@
-from bot.config import ADMINS
+from config import ADMINS
 
 def admin_only(func):
     def wrapper(message, bot):
