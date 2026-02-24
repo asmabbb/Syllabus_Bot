@@ -7,4 +7,4 @@ from database.db import init_db
 
 init_db()
 
-bot.polling()
+bot.infinity_polling()
