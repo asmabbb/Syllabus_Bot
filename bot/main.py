@@ -17,10 +17,8 @@ def home():
     return "📚 CETSU Syllabus Bot is alive!"
 
 def run_web():
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
-
-# Start web server in seperate thread
-threading.Thread(target=run_web).start()
+    print("Starting bot polling...")
+    bot.infinity_polling(timeout=10, long_polling_timeout=5)
 
 
 
@@ -29,5 +27,7 @@ threading.Thread(target=run_web).start()
 
 init_db()
 
-print("Starting bot polling...")
-bot.infinity_polling(timeout=10, long_polling_timeout=5)
+# Start web server in seperate thread
+threading.Thread(target=run_web).start()
+
+app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))

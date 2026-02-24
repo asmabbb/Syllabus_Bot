@@ -16,4 +16,4 @@ def start_handler(message):
         role = "admin" if user_id in ADMINS else "student"
         create_user(user_id, role)
 
-    bot.send_message(chat_id, f"Welcom {message.from_user.first_name} to the Syllabys Bot!", reply_markup=main_menu(is_admin))
+    bot.send_message(chat_id, f"Welcome {message.from_user.first_name} to the Syllabys Bot!", reply_markup=main_menu(is_admin))
