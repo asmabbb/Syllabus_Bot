@@ -1,7 +1,7 @@
-from bot_instance import bot
-from database.queries.users import get_user, create_user
-from keyboards.main_menu_keyboard import main_menu
-from config import ADMINS
+from bot.bot_instance import bot
+from bot.database.queries.users import get_user, create_user
+from bot.keyboards.main_menu_keyboard import main_menu
+from bot.config import ADMINS
 
 
 @bot.message_handler(commands=['start'])

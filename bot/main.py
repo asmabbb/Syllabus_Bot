@@ -1,8 +1,8 @@
-from bot_instance import bot
+from bot.bot_instance import bot
 
-from handlers import start
+from bot.handlers import start
 
-from database.db import init_db
+from bot.database.db import init_db
 
 
 # ----- Flask Server -----
@@ -29,4 +29,5 @@ threading.Thread(target=run_web).start()
 
 init_db()
 
+print("Starting bot polling...")
 bot.infinity_polling(timeout=10, long_polling_timeout=5)
