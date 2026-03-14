@@ -4,8 +4,8 @@ def main_menu(is_admin = False):
     markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
     markup.add(
         KeyboardButton("📚 Syllabus"),
-        KeyboardButton("📤 Share Resources"),
-        KeyboardButton("📁 Archive")
+        KeyboardButton("📁 Archive"),
+        KeyboardButton("📤 Share Resources")
     )
 
     if is_admin:
