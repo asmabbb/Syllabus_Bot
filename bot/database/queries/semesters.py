@@ -6,7 +6,7 @@ def get_semester_id(major_id, semester_number):
     cur = conn.cursor()
 
     cur.execute(
-        "SELECT id FROM semesters WHERE major_id = %s AND semester_number = %s",
+        "SELECT id FROM semesters WHERE major_id = %s AND number = %s",
         (major_id, semester_number)
     )
 

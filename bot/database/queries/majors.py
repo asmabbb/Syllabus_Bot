@@ -19,9 +19,17 @@ def add_major(name):
     cur = conn.cursor()
 
     cur.execute(
-        "INSERT INTO majors (name) VALUES (%s)",
+        "INSERT INTO majors (name) VALUES (%s) RETURNING id",
         (name,)
     )
+
+    major_id = cur.fetchone()[0]
+
+    for i in range(2,9):
+        cur.execute(
+            "INSERT INTO semesters (major_id, number) VALUES (%s,%s)",
+            (major_id, i)
+        )
 
     conn.commit()
     cur.close()

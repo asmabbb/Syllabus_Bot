@@ -11,7 +11,7 @@ admin_state = {}
 
 RESOURCE_TYPES = [
     "Exam",
-    "Books & Lectures",
+    "Lectures & Books",
     "Other Resources"
 ]
 

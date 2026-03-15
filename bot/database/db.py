@@ -40,10 +40,12 @@ def init_db():
     CREATE TABLE IF NOT EXISTS resources (
         id SERIAL PRIMARY KEY,
         subject_id INTEGER REFERENCES subjects(id),
-        catagory TEXT,
+        category TEXT,
         title TEXT,
+        file_id TEXT,
         academic_year INTEGER,
         season TEXT
+);
     );
     """)
 

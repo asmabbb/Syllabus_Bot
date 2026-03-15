@@ -1,6 +1,8 @@
 from bot.bot_instance import bot
 
 from bot.handlers import start
+from bot.handlers.admin_panel import register_admin_panel
+from bot.handlers.syllabus import register_syllabus
 
 from bot.database.db import init_db
 
@@ -26,6 +28,11 @@ def run_web():
 # ---- Start Everything ---- 
 
 init_db()
+
+# Register handlers
+register_admin_panel(bot)
+register_syllabus(bot)
+
 
 # Start web server in seperate thread
 threading.Thread(target=run_web).start()
