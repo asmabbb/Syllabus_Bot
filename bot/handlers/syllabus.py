@@ -25,7 +25,7 @@ def register_syllabus(bot):
         )
 
 
-    @bot.message_handler(func=lambda m: True)
+    @bot.message_handler(func=lambda m: m.chat.id in user_state)
     def major_selected(message):
 
         majors = get_majors()
@@ -58,7 +58,7 @@ def register_syllabus(bot):
                     
                     # Show resource categories
                     markup = ReplyKeyboardMarkup(resize_keyboard=True)
-                    markup.add("Exams", "Lectures & Books", "Other resources")  # Add more categories as needed
+                    markup.add("Exams", "Books & Lectures", "Other resources")  # Add more categories as needed
                     
                     bot.send_message(
                         message.chat.id,
