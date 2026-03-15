@@ -5,6 +5,7 @@ from bot.database.queries.subjects import add_subject, get_subjects, delete_subj
 from bot.database.queries.semesters import get_semester_id
 from bot.database.queries.resources import add_resource
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 
 admin_state = {}
 
@@ -141,7 +142,7 @@ def register_admin_panel(bot):
     @bot.message_handler(func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "rename_major")
     def rename_major(message):
 
-        state = admin_state[m.chat.id]
+        state = admin_state[message.chat.id]
 
         update_major(state["major_id"], message.text)
 

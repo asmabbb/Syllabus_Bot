@@ -1,4 +1,4 @@
-from app.database.connection import get_connection
+from bot.database.connection import get_connection
 
 
 def get_majors():
