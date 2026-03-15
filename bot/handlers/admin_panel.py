@@ -44,17 +44,10 @@ def register_admin_panel(bot):
     @bot.message_handler(func=lambda m: m.text == "Manage Subjects")
     def subject_menu(message):
 
-        markup = ReplyKeyboardMarkup(resize_keyboard=True)
-
-        markup.add("Add Subject")
-        markup.add("Delete Subject")
-
-        markup.add("⬅ Back")
-
         bot.send_message(
             message.chat.id,
             "Subjects Management",
-            reply_markup=markup
+            reply_markup=subject_menu()
         )
 
 
@@ -185,6 +178,25 @@ def register_admin_panel(bot):
         delete_major(major_id)
 
         bot.answer_callback_query(call.id, "Major deleted")
+
+        majors = get_majors()
+
+        markup = InlineKeyboardMarkup()
+
+        for major in majors:
+            markup.add(
+                InlineKeyboardButton(
+                    major[1],
+                    callback_data=f"delete_major:{major[0]}"
+                )
+            )
+
+        bot.edit_message_text(
+            "Choose major to delete:",
+            call.message.chat.id,
+            call.message.message_id,
+            reply_markup=markup
+        )
 
 
     @bot.message_handler(func=lambda m: m.text == "Add Subject")
@@ -327,6 +339,11 @@ def register_admin_panel(bot):
 
         bot.answer_callback_query(call.id, "Subject deleted")
 
+        bot.edit_message_text(
+            "Subject deleted.",
+            call.message.chat.id,
+            call.message.message_id
+        )
 
 
 
@@ -533,3 +550,7 @@ def register_admin_panel(bot):
             message.chat.id,
             "Resource uploaded successfully"
         )
+
+    @bot.message_handler(func=lambda m: m.text == "View Resources")
+    def view_resources(message):
+        bot.send_message(message.chat.id, "Feature coming soon.")
