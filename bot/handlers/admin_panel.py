@@ -8,12 +8,23 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 
 admin_state = {}
+admin_history = {}
 
 RESOURCE_TYPES = [
     "Exam",
     "Books & Lectures",
     "Other Resources"
 ]
+
+
+
+# Helper function for the back button
+def push_history(chat_id, keyboard):
+    if chat_id not in admin_history:
+        admin_history[chat_id] = []
+    admin_history[chat_id].append(keyboard)
+
+
 
 
 def register_admin_panel(bot):
@@ -23,6 +34,8 @@ def register_admin_panel(bot):
 
         if message.from_user.id not in ADMINS:
             return
+        
+        push_history(message.chat.id, admin_menu)
 
         bot.send_message(
             message.chat.id,
@@ -34,6 +47,8 @@ def register_admin_panel(bot):
     @bot.message_handler(func=lambda m: m.text == "Manage Majors")
     def open_major_menu(message):
 
+        push_history(message.chat.id, majors_menu)
+
         bot.send_message(
             message.chat.id,
             "Majors Management",
@@ -43,6 +58,8 @@ def register_admin_panel(bot):
 
     @bot.message_handler(func=lambda m: m.text == "Manage Subjects")
     def subject_menu(message):
+
+        push_history(message.chat.id, majors_menu)
 
         bot.send_message(
             message.chat.id,
@@ -61,6 +78,8 @@ def register_admin_panel(bot):
         markup.add("Delete Resource")
 
         markup.add("⬅ Back")
+
+        push_history(message.chat.id, lambda: markup)
 
         bot.send_message(
             message.chat.id,
@@ -554,3 +573,25 @@ def register_admin_panel(bot):
     @bot.message_handler(func=lambda m: m.text == "View Resources")
     def view_resources(message):
         bot.send_message(message.chat.id, "Feature coming soon.")
+
+
+    
+    @bot.message_handler(func = lambda m: m.text == "⬅ Back")
+    def go_back(message):
+        chat_id = message.chat.id
+
+        if chat_id not in admin_history or len(admin_history[chat_id]) == 0:
+            return
+
+        admin_history[chat_id].pop()
+
+        if len(admin_history[chat_id]) == 0:
+            return
+
+        previous_keyboard = admin_history[chat_id][-1]
+
+        bot.send_message(
+            chat_id,
+            "Going back...",
+            reply_markup=previous_keyboard()
+        )
