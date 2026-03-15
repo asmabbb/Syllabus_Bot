@@ -45,7 +45,6 @@ def init_db():
         file_id TEXT,
         academic_year INTEGER,
         season TEXT
-);
     );
     """)
 
