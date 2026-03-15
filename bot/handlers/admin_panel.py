@@ -57,16 +57,15 @@ def register_admin_panel(bot):
 
 
     @bot.message_handler(func=lambda m: m.text == "Manage Subjects")
-    def subject_menu(message):
+    def open_subject_menu(message):
 
-        push_history(message.chat.id, majors_menu)
+        push_history(message.chat.id, subjects_menu)
 
         bot.send_message(
             message.chat.id,
             "Subjects Management",
-            reply_markup=subject_menu()
+            reply_markup=subjects_menu()
         )
-
 
     @bot.message_handler(func=lambda m: m.text == "Manage Resources")
     def manage_resources(message):
@@ -253,7 +252,7 @@ def register_admin_panel(bot):
 
         markup = InlineKeyboardMarkup()
 
-        for i in range(1, 8):
+        for i in range(1, 9):
             markup.add(
                 InlineKeyboardButton(
                     f"Semester {i}",
@@ -565,10 +564,7 @@ def register_admin_panel(bot):
             "Resource uploaded successfully."
         )
 
-        bot.send_message(
-            message.chat.id,
-            "Resource uploaded successfully"
-        )
+    
 
     @bot.message_handler(func=lambda m: m.text == "View Resources")
     def view_resources(message):

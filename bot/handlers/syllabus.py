@@ -4,6 +4,22 @@ from bot.database.queries.subjects import get_subjects
 from bot.database.queries.resources import get_resources
 
 user_state = {}
+user_history = {}
+
+
+def push_history(chat_id, markup):
+    if chat_id not in user_history:
+        user_history[chat_id] = []
+
+    user_history[chat_id].append(markup)
+
+
+def go_back(chat_id):
+    if chat_id not in user_history or len(user_history[chat_id]) <= 1:
+        return None
+
+    user_history[chat_id].pop()
+    return user_history[chat_id][-1]
 
 
 def register_syllabus(bot):
@@ -18,6 +34,10 @@ def register_syllabus(bot):
         for major in majors:
             markup.add(major[1])
 
+        markup.add("⬅ Back")
+
+        push_history(message.chat.id, markup)
+
         bot.send_message(
             message.chat.id,
             "Choose Major:",
@@ -25,15 +45,33 @@ def register_syllabus(bot):
         )
 
 
-    @bot.message_handler(func=lambda m: m.chat.id in user_state)
-    def major_selected(message):
+    @bot.message_handler(func=lambda m: True)
+    def syllabus_navigation(message):
+
+        chat_id = message.chat.id
+        text = message.text
+
+        # BACK BUTTON
+        if text == "⬅ Back":
+
+            previous = go_back(chat_id)
+
+            if previous:
+                bot.send_message(
+                    chat_id,
+                    "Going back...",
+                    reply_markup=previous
+                )
+            return
+
 
         majors = get_majors()
 
+        # MAJOR SELECTED
         for major in majors:
-            if message.text == major[1]:
+            if text == major[1]:
 
-                user_state[message.chat.id] = {"major_id": major[0]}
+                user_state[chat_id] = {"major_id": major[0]}
 
                 subjects = get_subjects(major[0])
 
@@ -42,46 +80,65 @@ def register_syllabus(bot):
                 for subject in subjects:
                     markup.add(subject[1])
 
+                markup.add("⬅ Back")
+
+                push_history(chat_id, markup)
+
                 bot.send_message(
-                    message.chat.id,
+                    chat_id,
                     "Choose Subject:",
                     reply_markup=markup
                 )
+
                 return
 
-        # Check if it's a subject selection
-        if message.chat.id in user_state and "major_id" in user_state[message.chat.id]:
-            subjects = get_subjects(user_state[message.chat.id]["major_id"])
+
+        # SUBJECT SELECTED
+        if chat_id in user_state and "major_id" in user_state[chat_id]:
+
+            subjects = get_subjects(user_state[chat_id]["major_id"])
+
             for subject in subjects:
-                if message.text == subject[1]:
-                    user_state[message.chat.id]["subject_id"] = subject[0]
-                    
-                    # Show resource categories
+                if text == subject[1]:
+
+                    user_state[chat_id]["subject_id"] = subject[0]
+
                     markup = ReplyKeyboardMarkup(resize_keyboard=True)
-                    markup.add("Exams", "Books & Lectures", "Other resources")  # Add more categories as needed
-                    
+                    markup.add("Exam")
+                    markup.add("Books & Lectures")
+                    markup.add("Other Resources")
+                    markup.add("⬅ Back")
+
+                    push_history(chat_id, markup)
+
                     bot.send_message(
-                        message.chat.id,
+                        chat_id,
                         "Choose Resource Type:",
                         reply_markup=markup
                     )
+
                     return
 
-        # Check if it's a category selection
-        if message.chat.id in user_state and "subject_id" in user_state[message.chat.id]:
-            subject_id = user_state[message.chat.id]["subject_id"]
-            chat_id = message.chat.id
-            
-            if message.text == "Exams":
-                resources = get_resources(subject_id, "exam")
-                
-                for title, file_id in resources:
-                    bot.send_document(
-                        chat_id,
-                        file_id,
-                        caption=title
-                    )
-                # Clear state or go back
-                user_state.pop(message.chat.id, None)
+
+        # CATEGORY SELECTED
+        if chat_id in user_state and "subject_id" in user_state[chat_id]:
+
+            subject_id = user_state[chat_id]["subject_id"]
+
+            category = text
+
+            resources = get_resources(subject_id, category)
+
+            if not resources:
+                bot.send_message(chat_id, "No resources found.")
                 return
-            # Add similar for other categories
+
+            for title, file_id in resources:
+
+                bot.send_document(
+                    chat_id,
+                    file_id,
+                    caption=title
+                )
+
+            return
