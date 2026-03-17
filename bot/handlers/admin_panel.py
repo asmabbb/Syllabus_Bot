@@ -507,52 +507,6 @@ def register_admin_panel(bot):
 
     
 
-    @bot.message_handler(func=lambda m: m.text == "Add Major")
-    def start_add_major(message):
-        admin_state[message.chat.id] = {"action": "major_name"}
-        bot.send_message(message.chat.id, "Send major name:")
-
-
-    @bot.message_handler(func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "major_name")
-    def get_major_name(message):
-        admin_state[message.chat.id]["name"] = message.text
-        admin_state[message.chat.id]["action"] = "start_sem"
-
-        bot.send_message(message.chat.id, "Enter START semester (e.g. 1):")
-
-    
-    @bot.message_handler(func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "start_sem")
-    def get_start_sem(message):
-        admin_state[message.chat.id]["start"] = int(message.text)
-        admin_state[message.chat.id]["action"] = "end_sem"
-
-        bot.send_message(message.chat.id, "Enter END semester (e.g. 8):")
-
-    @bot.message_handler(func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "end_sem")
-    def finish_major(message):
-
-        state = admin_state[message.chat.id]
-
-        end = int(message.text)
-
-        conn = get_connection()
-        cur = conn.cursor()
-
-        cur.execute("INSERT INTO majors (name) VALUES (%s) RETURNING id", (state["name"],))
-        major_id = cur.fetchone()[0]
-
-        for i in range(state["start"], end + 1):
-            cur.execute("INSERT INTO semesters (major_id, number) VALUES (%s,%s)", (major_id, i))
-
-        conn.commit()
-        cur.close()
-        conn.close()
-
-        admin_state.pop(message.chat.id)
-
-        bot.send_message(message.chat.id, "Major created successfully.")
-
-
     @bot.callback_query_handler(func=lambda c: c.data.startswith("res_subject"))
     def res_subject_selected(call):
 

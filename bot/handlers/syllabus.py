@@ -1,5 +1,6 @@
 from telebot.types import ReplyKeyboardMarkup
 from bot.database.queries.majors import get_majors
+from bot.database.queries.semesters import get_semester_id
 from bot.database.queries.subjects import get_subjects
 from bot.database.queries.resources import get_resources
 from bot.database.queries.semesters import get_semesters_by_major
@@ -59,7 +60,7 @@ def register_syllabus(bot):
 
                 markup = ReplyKeyboardMarkup(resize_keyboard=True)
                 for s in semesters:
-                    markup.add(f"Semester {s[1]}")
+                    markup.add(f"Semester {s}")
 
                 markup.add("⬅ Back")
 
@@ -75,7 +76,8 @@ def register_syllabus(bot):
                 sem_number = int(text.split()[1])
                 user_state[chat_id]["semester"] = sem_number
 
-                subjects = get_subjects(user_state[chat_id]["major_id"], sem_number)
+                semester_id = get_semester_id(user_state[chat_id]["major_id"], sem_number)
+                subjects = get_subjects(semester_id)
 
                 markup = ReplyKeyboardMarkup(resize_keyboard=True)
                 for s in subjects:
@@ -90,10 +92,11 @@ def register_syllabus(bot):
 
         # SUBJECT
         if "semester" in user_state.get(chat_id, {}):
-            subjects = get_subjects(
+            semester_id = get_semester_id(
                 user_state[chat_id]["major_id"],
                 user_state[chat_id]["semester"]
             )
+            subjects = get_subjects(semester_id)
 
             for s in subjects:
                 if text == s[1]:
