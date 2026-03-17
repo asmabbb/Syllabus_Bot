@@ -1,7 +1,7 @@
 from bot.database.connection import get_connection
 
 
-def get_semesters_for_major(major_id):
+def get_semesters_by_major(major_id):
     conn = get_connection()
     cur = conn.cursor()
 
