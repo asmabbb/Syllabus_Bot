@@ -233,9 +233,13 @@ def register_admin_panel(bot):
 
         major_id = call.data.split(":")[1]
 
-        delete_major(major_id)
-
-        bot.answer_callback_query(call.id, "Major deleted")
+        try:
+            delete_major(major_id)
+            bot.answer_callback_query(call.id, "Major deleted")
+        except Exception as e:
+            bot.answer_callback_query(call.id, "Error deleting")
+            bot.send_message(call.message.chat.id, str(e))
+            return
 
         majors = get_majors()
 
@@ -486,7 +490,12 @@ def register_admin_panel(bot):
 
         state["semester"] = semester
 
-        subjects = get_subjects(state["major_id"])
+        semester_id = get_semester_id(
+            state["major_id"],
+            int(state["semester"])
+        )
+
+        subjects = get_subjects(semester_id)
 
         markup = InlineKeyboardMarkup()
 

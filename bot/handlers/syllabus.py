@@ -114,7 +114,12 @@ def register_syllabus(bot):
 
         # CATEGORY
         if "subject_id" in user_state.get(chat_id, {}):
-            resources = get_resources(user_state[chat_id]["subject_id"], text)
+            category = text.lower()
+
+            resources = get_resources(
+                user_state[chat_id]["subject_id"],
+                category
+            )
 
             if not resources:
                 bot.send_message(chat_id, "No resources found.")
