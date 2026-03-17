@@ -14,20 +14,20 @@ def get_majors():
     return majors
 
 
-def add_major(name):
+def add_major(name, start_semester, end_semester):
     conn = get_connection()
     cur = conn.cursor()
 
     cur.execute(
-        "INSERT INTO majors (name) VALUES (%s) RETURNING id",
-        (name,)
+        "INSERT INTO majors (name, start_semester, end_semester) VALUES (%s, %s, %s) RETURNING id",
+        (name, start_semester, end_semester)
     )
 
     major_id = cur.fetchone()[0]
 
-    for i in range(2,9):
+    for i in range(start_semester, end_semester + 1):
         cur.execute(
-            "INSERT INTO semesters (major_id, number) VALUES (%s,%s)",
+            "INSERT INTO semesters (major_id, number) VALUES (%s, %s)",
             (major_id, i)
         )
 

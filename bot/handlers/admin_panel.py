@@ -4,6 +4,7 @@ from bot.database.queries.majors import add_major, get_majors, delete_major, upd
 from bot.database.queries.subjects import add_subject, get_subjects, delete_subject
 from bot.database.queries.semesters import get_semester_id
 from bot.database.queries.resources import add_resource
+from bot.database.connection import get_connection
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 
@@ -11,9 +12,9 @@ admin_state = {}
 admin_history = {}
 
 RESOURCE_TYPES = [
-    "Exam",
-    "Books & Lectures",
-    "Other Resources"
+    "exam",
+    "books & lectures",
+    "other resources"
 ]
 
 
@@ -90,7 +91,7 @@ def register_admin_panel(bot):
     @bot.message_handler(func=lambda m: m.text == "Add Major")
     def start_add_major(message):
 
-        admin_state[message.chat.id] = {"action": "add_major"}
+        admin_state[message.chat.id] = {"action": "add_major_name"}
 
         bot.send_message(
             message.chat.id,
@@ -98,17 +99,56 @@ def register_admin_panel(bot):
         )
 
 
-    @bot.message_handler(func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "add_major")
-    def finish_add_major(message):
+    @bot.message_handler(func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "add_major_name")
+    def receive_major_name(message):
 
-        add_major(message.text)
-
-        admin_state.pop(message.chat.id)
+        admin_state[message.chat.id]["name"] = message.text
+        admin_state[message.chat.id]["action"] = "add_major_start"
 
         bot.send_message(
             message.chat.id,
-            "Major added successfully."
+            "Enter the starting semester number (e.g., 1):"
         )
+
+    @bot.message_handler(func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "add_major_start")
+    def receive_start_semester(message):
+
+        try:
+            start = int(message.text)
+            if start < 1:
+                raise ValueError
+            admin_state[message.chat.id]["start"] = start
+            admin_state[message.chat.id]["action"] = "add_major_end"
+
+            bot.send_message(
+                message.chat.id,
+                "Enter the ending semester number (e.g., 8):"
+            )
+        except ValueError:
+            bot.send_message(message.chat.id, "Please enter a valid number for starting semester.")
+
+    @bot.message_handler(func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "add_major_end")
+    def receive_end_semester(message):
+
+        try:
+            end = int(message.text)
+            start = admin_state[message.chat.id]["start"]
+            if end < start:
+                bot.send_message(message.chat.id, "Ending semester must be greater than or equal to starting semester.")
+                return
+
+            name = admin_state[message.chat.id]["name"]
+
+            add_major(name, start, end)
+
+            admin_state.pop(message.chat.id)
+
+            bot.send_message(
+                message.chat.id,
+                "Major added successfully."
+            )
+        except ValueError:
+            bot.send_message(message.chat.id, "Please enter a valid number for ending semester.")
 
 
     @bot.message_handler(func=lambda m: m.text == "Edit Major")
@@ -465,6 +505,54 @@ def register_admin_panel(bot):
         )
 
 
+    
+
+    @bot.message_handler(func=lambda m: m.text == "Add Major")
+    def start_add_major(message):
+        admin_state[message.chat.id] = {"action": "major_name"}
+        bot.send_message(message.chat.id, "Send major name:")
+
+
+    @bot.message_handler(func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "major_name")
+    def get_major_name(message):
+        admin_state[message.chat.id]["name"] = message.text
+        admin_state[message.chat.id]["action"] = "start_sem"
+
+        bot.send_message(message.chat.id, "Enter START semester (e.g. 1):")
+
+    
+    @bot.message_handler(func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "start_sem")
+    def get_start_sem(message):
+        admin_state[message.chat.id]["start"] = int(message.text)
+        admin_state[message.chat.id]["action"] = "end_sem"
+
+        bot.send_message(message.chat.id, "Enter END semester (e.g. 8):")
+
+    @bot.message_handler(func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "end_sem")
+    def finish_major(message):
+
+        state = admin_state[message.chat.id]
+
+        end = int(message.text)
+
+        conn = get_connection()
+        cur = conn.cursor()
+
+        cur.execute("INSERT INTO majors (name) VALUES (%s) RETURNING id", (state["name"],))
+        major_id = cur.fetchone()[0]
+
+        for i in range(state["start"], end + 1):
+            cur.execute("INSERT INTO semesters (major_id, number) VALUES (%s,%s)", (major_id, i))
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        admin_state.pop(message.chat.id)
+
+        bot.send_message(message.chat.id, "Major created successfully.")
+
+
     @bot.callback_query_handler(func=lambda c: c.data.startswith("res_subject"))
     def res_subject_selected(call):
 
@@ -477,9 +565,10 @@ def register_admin_panel(bot):
         markup = InlineKeyboardMarkup()
 
         for category in RESOURCE_TYPES:
+            display_name = category.replace(" & ", " & ").title()  # "exam" -> "Exam", "books & lectures" -> "Books & Lectures"
             markup.add(
                 InlineKeyboardButton(
-                    category,
+                    display_name,
                     callback_data=f"res_cat:{category}"
                 )
             )
@@ -494,7 +583,7 @@ def register_admin_panel(bot):
     @bot.callback_query_handler(func=lambda c: c.data.startswith("res_cat"))
     def res_cat_selected(call):
 
-        category = call.data.split(":", 1)[1]  # in case category has :
+        category = call.data.split(":", 1)[1].lower()  # Normalize to lowercase
 
         state = admin_state.get(call.message.chat.id)
 
@@ -571,19 +660,25 @@ def register_admin_panel(bot):
         bot.send_message(message.chat.id, "Feature coming soon.")
 
 
-    
-    @bot.message_handler(func = lambda m: m.text == "⬅ Back")
+
+
+    @bot.message_handler(func=lambda m: m.text == "⬅ Back")
     def go_back(message):
+
         chat_id = message.chat.id
 
-        if chat_id not in admin_history or len(admin_history[chat_id]) == 0:
+        if chat_id not in admin_history or len(admin_history[chat_id]) <= 1:
+            from bot.keyboards.main_menu_keyboard import main_menu
+            is_admin = message.from_user.id in ADMINS
+
+            bot.send_message(
+                chat_id,
+                "Main Menu",
+                reply_markup=main_menu(is_admin)
+            )
             return
 
         admin_history[chat_id].pop()
-
-        if len(admin_history[chat_id]) == 0:
-            return
-
         previous_keyboard = admin_history[chat_id][-1]
 
         bot.send_message(

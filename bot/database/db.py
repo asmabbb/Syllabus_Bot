@@ -16,14 +16,16 @@ def init_db():
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS majors (
         id SERIAL PRIMARY KEY,
-        name TEXT NOT NULL
+        name TEXT NOT NULL,
+        start_semester INTEGER DEFAULT 1,
+        end_semester INTEGER DEFAULT 8
     );
     """)
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS semesters (
         id SERIAL PRIMARY KEY,
-        major_id INTEGER REFERENCES majors(id),
+        major_id INTEGER REFERENCES majors(id) ON DELETE CASCADE,
         number INTEGER
     );
     """)
@@ -31,7 +33,7 @@ def init_db():
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS subjects (
         id SERIAL PRIMARY KEY,
-        semester_id INTEGER REFERENCES semesters(id),
+        semester_id INTEGER REFERENCES semesters(id) ON DELETE CASCADE,
         name TEXT NOT NULL
     );
     """)
@@ -39,7 +41,7 @@ def init_db():
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS resources (
         id SERIAL PRIMARY KEY,
-        subject_id INTEGER REFERENCES subjects(id),
+        subject_id INTEGER REFERENCES subjects(id) ON DELETE CASCADE,
         category TEXT,
         title TEXT,
         file_id TEXT,

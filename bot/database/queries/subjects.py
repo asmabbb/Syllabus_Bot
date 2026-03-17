@@ -1,17 +1,16 @@
 from bot.database.connection import get_connection
 
 
-def get_subjects(major_id):
+def get_subjects(semester_id):
 
     conn = get_connection()
     cur = conn.cursor()
 
     cur.execute("""
-        SELECT subjects.id, subjects.name
+        SELECT id, name
         FROM subjects
-        JOIN semesters ON subjects.semester_id = semesters.id
-        WHERE semesters.major_id = %s
-    """, (major_id,))
+        WHERE semester_id = %s
+    """, (semester_id,))
 
     subjects = cur.fetchall()
 

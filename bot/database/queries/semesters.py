@@ -1,6 +1,23 @@
 from bot.database.connection import get_connection
 
 
+def get_semesters_for_major(major_id):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        "SELECT number FROM semesters WHERE major_id = %s ORDER BY number",
+        (major_id,)
+    )
+
+    semesters = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return [sem[0] for sem in semesters]
+
+
 def get_semester_id(major_id, semester_number):
     conn = get_connection()
     cur = conn.cursor()
