@@ -90,65 +90,65 @@ def register_admin_panel(bot):
 
     @bot.message_handler(func=lambda m: m.text == "Add Major")
     def start_add_major(message):
-
-        admin_state[message.chat.id] = {"action": "add_major_name"}
-
-        bot.send_message(
-            message.chat.id,
-            "Send the new major name."
-        )
+        admin_state[message.chat.id] = {"action": "major_name"}
+        bot.send_message(message.chat.id, "Send major name:")
 
 
-    @bot.message_handler(func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "add_major_name")
-    def receive_major_name(message):
-
+    @bot.message_handler(func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "major_name")
+    def get_major_name(message):
         admin_state[message.chat.id]["name"] = message.text
-        admin_state[message.chat.id]["action"] = "add_major_start"
+        admin_state[message.chat.id]["action"] = "start_sem"
 
-        bot.send_message(
-            message.chat.id,
-            "Enter the starting semester number (e.g., 1):"
-        )
+        bot.send_message(message.chat.id, "Enter START semester (e.g. 1):")
 
-    @bot.message_handler(func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "add_major_start")
-    def receive_start_semester(message):
 
+    @bot.message_handler(func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "start_sem")
+    def get_start_sem(message):
         try:
-            start = int(message.text)
-            if start < 1:
-                raise ValueError
-            admin_state[message.chat.id]["start"] = start
-            admin_state[message.chat.id]["action"] = "add_major_end"
+            admin_state[message.chat.id]["start"] = int(message.text)
+            admin_state[message.chat.id]["action"] = "end_sem"
 
-            bot.send_message(
-                message.chat.id,
-                "Enter the ending semester number (e.g., 8):"
-            )
+            bot.send_message(message.chat.id, "Enter END semester (e.g. 8):")
         except ValueError:
-            bot.send_message(message.chat.id, "Please enter a valid number for starting semester.")
+            bot.send_message(message.chat.id, "Enter a valid number.")
 
-    @bot.message_handler(func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "add_major_end")
-    def receive_end_semester(message):
+
+    @bot.message_handler(func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "end_sem")
+    def finish_major(message):
 
         try:
+            state = admin_state[message.chat.id]
             end = int(message.text)
-            start = admin_state[message.chat.id]["start"]
-            if end < start:
-                bot.send_message(message.chat.id, "Ending semester must be greater than or equal to starting semester.")
+
+            if end < state["start"]:
+                bot.send_message(message.chat.id, "End must be >= start.")
                 return
 
-            name = admin_state[message.chat.id]["name"]
+            conn = get_connection()
+            cur = conn.cursor()
 
-            add_major(name, start, end)
+            cur.execute(
+                "INSERT INTO majors (name) VALUES (%s) RETURNING id",
+                (state["name"],)
+            )
+            major_id = cur.fetchone()[0]
+
+            for i in range(state["start"], end + 1):
+                cur.execute(
+                    "INSERT INTO semesters (major_id, number) VALUES (%s,%s)",
+                    (major_id, i)
+                )
+
+            conn.commit()
+            cur.close()
+            conn.close()
 
             admin_state.pop(message.chat.id)
 
-            bot.send_message(
-                message.chat.id,
-                "Major added successfully."
-            )
+            bot.send_message(message.chat.id, "Major created successfully.")
+
         except ValueError:
-            bot.send_message(message.chat.id, "Please enter a valid number for ending semester.")
+            bot.send_message(message.chat.id, "Enter a valid number.")
 
 
     @bot.message_handler(func=lambda m: m.text == "Edit Major")
@@ -462,7 +462,7 @@ def register_admin_panel(bot):
 
         markup = InlineKeyboardMarkup()
 
-        for i in range(1, 8):
+        for i in range(1, 9):
             markup.add(
                 InlineKeyboardButton(
                     f"Semester {i}",
