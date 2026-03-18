@@ -151,138 +151,138 @@ def register_syllabus(bot):
             return
 
 
-def send_titles_page(bot, chat_id, page):
+    def send_titles_page(bot, chat_id, page):
 
-    data = resource_state.get(chat_id)
-    if not data:
-        return
+        data = resource_state.get(chat_id)
+        if not data:
+            return
 
-    titles = data["titles"]
+        titles = data["titles"]
 
-    page_items = paginate(titles, page)
+        page_items = paginate(titles, page)
 
-    markup = InlineKeyboardMarkup()
+        markup = InlineKeyboardMarkup()
 
-    for title in page_items:
-        markup.add(
-            InlineKeyboardButton(
-                f"📘 {title}",
-                callback_data=f"title:{title}:0"
+        for title in page_items:
+            markup.add(
+                InlineKeyboardButton(
+                    f"📘 {title}",
+                    callback_data=f"title:{title}:0"
+                )
             )
+
+        nav = pagination_keyboard("titles", page, len(titles))
+        if nav.keyboard:
+            for row in nav.keyboard:
+                markup.row(*row)
+
+        bot.send_message(chat_id, "📚 Choose Resource Title:", reply_markup=markup)
+
+
+    def send_files_page(bot, chat_id, title, page, message_id):
+
+        data = resource_state.get(chat_id)
+        if not data:
+            return
+
+        items = data["grouped"][title]
+
+        def season_order(season):
+            return {"fall": 3, "summer": 2, "spring": 1}.get(season, 0)
+
+        items = sorted(
+            items,
+            key=lambda x: (x[1], season_order(x[2])),
+            reverse=True
         )
 
-    nav = pagination_keyboard("titles", page, len(titles))
-    if nav.keyboard:
-        for row in nav.keyboard:
-            markup.row(*row)
+        page_items = paginate(items, page)
 
-    bot.send_message(chat_id, "📚 Choose Resource Title:", reply_markup=markup)
+        markup = InlineKeyboardMarkup()
 
-
-def send_files_page(bot, chat_id, title, page, message_id):
-
-    data = resource_state.get(chat_id)
-    if not data:
-        return
-
-    items = data["grouped"][title]
-
-    def season_order(season):
-        return {"fall": 3, "summer": 2, "spring": 1}.get(season, 0)
-
-    items = sorted(
-        items,
-        key=lambda x: (x[1], season_order(x[2])),
-        reverse=True
-    )
-
-    page_items = paginate(items, page)
-
-    markup = InlineKeyboardMarkup()
-
-    for file_id, year, season in page_items:
-        markup.add(
-            InlineKeyboardButton(
-                f"{season.capitalize()} {year}",
-                callback_data=f"file:{file_id}"
+        for file_id, year, season in page_items:
+            markup.add(
+                InlineKeyboardButton(
+                    f"{season.capitalize()} {year}",
+                    callback_data=f"file:{file_id}"
+                )
             )
+
+        # pagination
+        nav = pagination_keyboard(f"title:{title}", page, len(items))
+        if nav.keyboard:
+            for row in nav.keyboard:
+                markup.row(*row)
+
+        # back button
+        markup.add(
+            InlineKeyboardButton("⬅ Back", callback_data="back_titles")
         )
 
-    # pagination
-    nav = pagination_keyboard(f"title:{title}", page, len(items))
-    if nav.keyboard:
-        for row in nav.keyboard:
-            markup.row(*row)
-
-    # back button
-    markup.add(
-        InlineKeyboardButton("⬅ Back", callback_data="back_titles")
-    )
-
-    bot.edit_message_text(
-        f"📘 {title}",
-        chat_id,
-        message_id,
-        reply_markup=markup
-    )
+        bot.edit_message_text(
+            f"📘 {title}",
+            chat_id,
+            message_id,
+            reply_markup=markup
+        )
 
 
-@bot.callback_query_handler(func=lambda c: c.data.startswith("title:"))
-def open_title(call):
+    @bot.callback_query_handler(func=lambda c: c.data.startswith("title:"))
+    def open_title(call):
 
-    try:
-        _, title, page = call.data.split(":")
-        page = int(page)
-    except:
-        return
+        try:
+            _, title, page = call.data.split(":")
+            page = int(page)
+        except:
+            return
 
-    chat_id = call.message.chat.id
+        chat_id = call.message.chat.id
 
-    send_files_page(bot, chat_id, title, page, call.message.message_id)
-
-
-@bot.callback_query_handler(func=lambda c: c.data.startswith("titles:page"))
-def titles_page_handler(call):
-
-    try:
-        _, _, page = call.data.split(":")
-        page = int(page)
-    except:
-        return
-
-    chat_id = call.message.chat.id
-
-    send_titles_page(bot, chat_id, page)
+        send_files_page(bot, chat_id, title, page, call.message.message_id)
 
 
-@bot.callback_query_handler(func=lambda c: c.data == "back_titles")
-def back_to_titles(call):
+    @bot.callback_query_handler(func=lambda c: c.data.startswith("titles:page"))
+    def titles_page_handler(call):
 
-    chat_id = call.message.chat.id
+        try:
+            _, _, page = call.data.split(":")
+            page = int(page)
+        except:
+            return
 
-    send_titles_page(bot, chat_id, 0)
+        chat_id = call.message.chat.id
 
-
-@bot.callback_query_handler(func=lambda c: c.data.startswith("title:") and ":page:" in c.data)
-def title_page_handler(call):
-
-    parts = call.data.split(":")
-    if len(parts) < 4:
-        return
-    title = parts[1]
-    page = int(parts[3])
-
-    chat_id = call.message.chat.id
-
-    send_files_page(bot, chat_id, title, page, call.message.message_id)
+        send_titles_page(bot, chat_id, page)
 
 
-@bot.callback_query_handler(func=lambda c: c.data.startswith("file:"))
-def send_file(call):
+    @bot.callback_query_handler(func=lambda c: c.data == "back_titles")
+    def back_to_titles(call):
 
-    file_id = call.data.split(":")[1]
+        chat_id = call.message.chat.id
 
-    bot.send_document(
-        call.message.chat.id,
-        file_id
-    )
+        send_titles_page(bot, chat_id, 0)
+
+
+    @bot.callback_query_handler(func=lambda c: c.data.startswith("title:") and ":page:" in c.data)
+    def title_page_handler(call):
+
+        parts = call.data.split(":")
+        if len(parts) < 4:
+            return
+        title = parts[1]
+        page = int(parts[3])
+
+        chat_id = call.message.chat.id
+
+        send_files_page(bot, chat_id, title, page, call.message.message_id)
+
+
+    @bot.callback_query_handler(func=lambda c: c.data.startswith("file:"))
+    def send_file(call):
+
+        file_id = call.data.split(":")[1]
+
+        bot.send_document(
+            call.message.chat.id,
+            file_id
+        )
