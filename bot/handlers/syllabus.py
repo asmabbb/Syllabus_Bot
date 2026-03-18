@@ -47,6 +47,8 @@ def register_syllabus(bot):
         chat_id = message.chat.id
         text = message.text
 
+        print(f"[NAVIGATION] Received: {text}")
+
         # BACK
         if text == "⬅ Back":
             prev = back(chat_id)
@@ -55,8 +57,12 @@ def register_syllabus(bot):
             return
 
         # MAJOR
-        for m in get_majors():
-            if text == m[1]:
+        majors = get_majors()
+
+        for m in majors:
+            if text.strip() == m[1].strip():
+
+                print(f"[MATCH] Selected major: {m[1]}")
 
                 user_state[chat_id] = {"major_id": m[0]}
 
@@ -149,6 +155,10 @@ def register_syllabus(bot):
 
             send_titles_page(bot, chat_id, 0)
             return
+
+        print(f"[WARNING] Unhandled input: {text}")
+
+    bot.message_handler(func=lambda m: m.text is not None)(navigation)
 
 
     def send_titles_page(bot, chat_id, page):
