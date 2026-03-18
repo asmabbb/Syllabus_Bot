@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from telebot.types import ReplyKeyboardMarkup
 from bot.database.queries.majors import get_majors
 from bot.database.queries.semesters import get_semester_id
@@ -125,5 +127,32 @@ def register_syllabus(bot):
                 bot.send_message(chat_id, "No resources found.")
                 return
 
-            for title, file_id in resources:
-                bot.send_document(chat_id, file_id, caption=title)
+            grouped = defaultdict(list)
+
+            for title, file_id, year, season in resources:
+                grouped[title].append((file_id, year, season))
+
+            # Sort titles newest first (based on latest resource inside)
+            sorted_titles = sorted(
+                grouped.keys(),
+                key=lambda t: max((y, s) for _, y, s in grouped[t]),
+                reverse=True
+            )
+
+            for title in sorted_titles:
+
+                bot.send_message(chat_id, f"📚 {title}")
+
+                # Sort inside each title
+                items = sorted(
+                    grouped[title],
+                    key=lambda x: (x[1], x[2]),
+                    reverse=True
+                )
+
+                for file_id, year, season in items:
+                    bot.send_document(
+                        chat_id,
+                        file_id,
+                        caption=f"{season.capitalize()} {year}"
+                    )

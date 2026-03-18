@@ -5,6 +5,7 @@ from bot.database.queries.subjects import add_subject, get_subjects, delete_subj
 from bot.database.queries.semesters import get_semester_id
 from bot.database.queries.resources import add_resource, delete_resource
 from bot.database.connection import get_connection
+from bot.utils.pagination import paginate, pagination_keyboard
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 
@@ -205,15 +206,12 @@ def register_admin_panel(bot):
         )
 
 
-    @bot.message_handler(func=lambda m: m.text == "Delete Major")
-    def delete_major_menu(message):
-
-        majors = get_majors()
+    def build_major_markup(majors, page):
+        page_items = paginate(majors, page)
 
         markup = InlineKeyboardMarkup()
 
-        for major in majors:
-
+        for major in page_items:
             markup.add(
                 InlineKeyboardButton(
                     major[1],
@@ -221,11 +219,45 @@ def register_admin_panel(bot):
                 )
             )
 
-        bot.send_message(
-            message.chat.id,
-            "Choose major to delete:",
-            reply_markup=markup
-        )
+        nav = pagination_keyboard("majors", page, len(majors))
+        if nav.keyboard:
+            for row in nav.keyboard:
+                markup.row(*row)
+
+        return markup
+
+
+    def show_major_page(bot, chat_id, majors, page):
+        markup = build_major_markup(majors, page)
+        bot.send_message(chat_id, "Choose major to delete:", reply_markup=markup)
+
+
+    def build_subjects_markup(major_id, subjects, page):
+        page_items = paginate(subjects, page)
+
+        markup = InlineKeyboardMarkup()
+
+        for subject in page_items:
+            markup.add(
+                InlineKeyboardButton(
+                    subject[1],
+                    callback_data=f"del_subject:{subject[0]}"
+                )
+            )
+
+        nav = pagination_keyboard(f"subjects_page:{major_id}", page, len(subjects))
+        if nav.keyboard:
+            for row in nav.keyboard:
+                markup.row(*row)
+
+        return markup
+
+
+    @bot.message_handler(func=lambda m: m.text == "Delete Major")
+    def delete_major_menu(message):
+
+        majors = get_majors()
+        show_major_page(bot, message.chat.id, majors, 0)
 
 
     @bot.callback_query_handler(func=lambda c: c.data.startswith("delete_major"))
@@ -243,18 +275,75 @@ def register_admin_panel(bot):
 
         majors = get_majors()
 
-        markup = InlineKeyboardMarkup()
-
-        for major in majors:
-            markup.add(
-                InlineKeyboardButton(
-                    major[1],
-                    callback_data=f"delete_major:{major[0]}"
-                )
-            )
+        markup = build_major_markup(majors, 0)
 
         bot.edit_message_text(
             "Choose major to delete:",
+            call.message.chat.id,
+            call.message.message_id,
+            reply_markup=markup
+        )
+
+
+    @bot.callback_query_handler(func=lambda c: c.data.startswith("majors_page"))
+    def majors_page_handler(call):
+
+        parts = call.data.split(":")
+        try:
+            page = int(parts[-1])
+        except (ValueError, IndexError):
+            return
+
+        majors = get_majors()
+
+        if page < 0 or page * 5 >= len(majors):
+            return
+
+        markup = build_major_markup(majors, page)
+
+        bot.edit_message_text(
+            "Choose major to delete:",
+            call.message.chat.id,
+            call.message.message_id,
+            reply_markup=markup
+        )
+
+
+    @bot.callback_query_handler(func=lambda c: c.data.startswith("subjects_page"))
+    def subjects_page_handler(call):
+
+        parts = call.data.split(":")
+        if len(parts) < 3:
+            return
+
+        try:
+            major_id = int(parts[1])
+            page = int(parts[-1])
+        except ValueError:
+            return
+
+        conn = get_connection()
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT subjects.id, subjects.name
+            FROM subjects
+            JOIN semesters ON subjects.semester_id = semesters.id
+            WHERE semesters.major_id = %s
+        """, (major_id,))
+
+        subjects = cur.fetchall()
+
+        cur.close()
+        conn.close()
+
+        if page < 0 or page * 5 >= len(subjects):
+            return
+
+        markup = build_subjects_markup(major_id, subjects, page)
+
+        bot.edit_message_text(
+            "Select subject to delete:",
             call.message.chat.id,
             call.message.message_id,
             reply_markup=markup
@@ -388,15 +477,7 @@ def register_admin_panel(bot):
         cur.close()
         conn.close()
 
-        markup = InlineKeyboardMarkup()
-
-        for subject in subjects:
-            markup.add(
-                InlineKeyboardButton(
-                    subject[1],
-                    callback_data=f"del_subject:{subject[0]}"
-                )
-            )
+        markup = build_subjects_markup(major_id, subjects, 0)
 
         bot.send_message(
             call.message.chat.id,
@@ -664,6 +745,27 @@ def register_admin_panel(bot):
         )
 
 
+    def build_resources_markup(resources, page):
+        page_items = paginate(resources, page)
+
+        markup = InlineKeyboardMarkup()
+
+        for r in page_items:
+            markup.add(
+                InlineKeyboardButton(
+                    r[1],
+                    callback_data=f"del_res:{r[0]}"
+                )
+            )
+
+        nav = pagination_keyboard("del_res_page", page, len(resources))
+        if nav.keyboard:
+            for row in nav.keyboard:
+                markup.row(*row)
+
+        return markup
+
+
     @bot.message_handler(func=lambda m: m.text == "Delete Resource")
     def delete_resource_menu(message):
 
@@ -676,20 +778,12 @@ def register_admin_panel(bot):
         cur.close()
         conn.close()
 
-        markup = InlineKeyboardMarkup()
-
-        for r in resources:
-            markup.add(
-                InlineKeyboardButton(
-                    r[1],
-                    callback_data=f"del_res:{r[0]}"
-                )
-            )
+        markup = build_resources_markup(resources, 0)
 
         bot.send_message(message.chat.id, "Choose resource to delete:", reply_markup=markup)
 
 
-    @bot.callback_query_handler(func=lambda c: c.data.startswith("del_res"))
+    @bot.callback_query_handler(func=lambda c: c.data.startswith("del_res:"))
     def delete_resource_handler(call):
 
         resource_id = call.data.split(":")[1]
@@ -702,4 +796,35 @@ def register_admin_panel(bot):
             "Resource deleted.",
             call.message.chat.id,
             call.message.message_id
+        )
+
+
+    @bot.callback_query_handler(func=lambda c: c.data.startswith("del_res_page"))
+    def del_res_page_handler(call):
+
+        parts = call.data.split(":")
+        try:
+            page = int(parts[-1])
+        except (ValueError, IndexError):
+            return
+
+        conn = get_connection()
+        cur = conn.cursor()
+
+        cur.execute("SELECT id, title FROM resources")
+        resources = cur.fetchall()
+
+        cur.close()
+        conn.close()
+
+        if page < 0 or page * 5 >= len(resources):
+            return
+
+        markup = build_resources_markup(resources, page)
+
+        bot.edit_message_text(
+            "Choose resource to delete:",
+            call.message.chat.id,
+            call.message.message_id,
+            reply_markup=markup
         )

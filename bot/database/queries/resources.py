@@ -23,10 +23,17 @@ def get_resources(subject_id, category):
     cur = conn.cursor()
 
     cur.execute("""
-        SELECT title, file_id
+        SELECT title, file_id, academic_year, season
         FROM resources
         WHERE subject_id=%s AND category=%s
-        ORDER BY academic_year DESC
+        ORDER BY 
+            academic_year DESC,
+            CASE 
+                WHEN season = 'fall' THEN 3
+                WHEN season = 'summer' THEN 2
+                WHEN season = 'spring' THEN 1
+                ELSE 0
+            END DESC
     """, (subject_id, category))
 
     data = cur.fetchall()
