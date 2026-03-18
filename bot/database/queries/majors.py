@@ -56,34 +56,39 @@ def delete_major(major_id):
     conn = get_connection()
     cur = conn.cursor()
 
-    # 1. Delete resources (deepest level)
-    cur.execute("""
-        DELETE FROM resources
-        WHERE subject_id IN (
-            SELECT id FROM subjects
-            WHERE semester_id IN (
-                SELECT id FROM semesters WHERE major_id = %s
+    # 1. Get all semester IDs
+    cur.execute("SELECT id FROM semesters WHERE major_id = %s", (major_id,))
+    semesters = [row[0] for row in cur.fetchall()]
+
+    if semesters:
+        # 2. Get all subject IDs
+        cur.execute(
+            "SELECT id FROM subjects WHERE semester_id = ANY(%s)",
+            (semesters,)
+        )
+        subjects = [row[0] for row in cur.fetchall()]
+
+        if subjects:
+            # 3. Delete resources
+            cur.execute(
+                "DELETE FROM resources WHERE subject_id = ANY(%s)",
+                (subjects,)
             )
+
+            # 4. Delete subjects
+            cur.execute(
+                "DELETE FROM subjects WHERE id = ANY(%s)",
+                (subjects,)
+            )
+
+        # 5. Delete semesters
+        cur.execute(
+            "DELETE FROM semesters WHERE id = ANY(%s)",
+            (semesters,)
         )
-    """, (major_id,))
 
-    # 2. Delete subjects
-    cur.execute("""
-        DELETE FROM subjects
-        WHERE semester_id IN (
-            SELECT id FROM semesters WHERE major_id = %s
-        )
-    """, (major_id,))
-
-    # 3. Delete semesters
-    cur.execute("""
-        DELETE FROM semesters WHERE major_id = %s
-    """, (major_id,))
-
-    # 4. Delete the major
-    cur.execute("""
-        DELETE FROM majors WHERE id = %s
-    """, (major_id,))
+    # 6. Delete major
+    cur.execute("DELETE FROM majors WHERE id = %s", (major_id,))
 
     conn.commit()
     cur.close()

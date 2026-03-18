@@ -40,6 +40,13 @@ def delete_subject(subject_id):
     conn = get_connection()
     cur = conn.cursor()
 
+    # 1. Delete resources first
+    cur.execute(
+        "DELETE FROM resources WHERE subject_id = %s",
+        (subject_id,)
+    )
+
+    # 2. Delete subject
     cur.execute(
         "DELETE FROM subjects WHERE id = %s",
         (subject_id,)

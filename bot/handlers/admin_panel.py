@@ -3,7 +3,7 @@ from bot.keyboards.admin_panel_keyboard import admin_menu, majors_menu, subjects
 from bot.database.queries.majors import add_major, get_majors, delete_major, update_major
 from bot.database.queries.subjects import add_subject, get_subjects, delete_subject
 from bot.database.queries.semesters import get_semester_id
-from bot.database.queries.resources import add_resource
+from bot.database.queries.resources import add_resource, delete_resource
 from bot.database.connection import get_connection
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton
@@ -371,9 +371,22 @@ def register_admin_panel(bot):
     @bot.callback_query_handler(func=lambda c: c.data.startswith("del_subject_major"))
     def del_subject_major_selected(call):
 
-        major_id = call.data.split(":")[1]
+        major_id = int(call.data.split(":")[1])
 
-        subjects = get_subjects(major_id)
+        conn = get_connection()
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT subjects.id, subjects.name
+            FROM subjects
+            JOIN semesters ON subjects.semester_id = semesters.id
+            WHERE semesters.major_id = %s
+        """, (major_id,))
+
+        subjects = cur.fetchall()
+
+        cur.close()
+        conn.close()
 
         markup = InlineKeyboardMarkup()
 
@@ -648,4 +661,45 @@ def register_admin_panel(bot):
             chat_id,
             "Going back...",
             reply_markup=previous_keyboard()
+        )
+
+
+    @bot.message_handler(func=lambda m: m.text == "Delete Resource")
+    def delete_resource_menu(message):
+
+        conn = get_connection()
+        cur = conn.cursor()
+
+        cur.execute("SELECT id, title FROM resources")
+        resources = cur.fetchall()
+
+        cur.close()
+        conn.close()
+
+        markup = InlineKeyboardMarkup()
+
+        for r in resources:
+            markup.add(
+                InlineKeyboardButton(
+                    r[1],
+                    callback_data=f"del_res:{r[0]}"
+                )
+            )
+
+        bot.send_message(message.chat.id, "Choose resource to delete:", reply_markup=markup)
+
+
+    @bot.callback_query_handler(func=lambda c: c.data.startswith("del_res"))
+    def delete_resource_handler(call):
+
+        resource_id = call.data.split(":")[1]
+
+        delete_resource(resource_id)
+
+        bot.answer_callback_query(call.id, "Resource deleted")
+
+        bot.edit_message_text(
+            "Resource deleted.",
+            call.message.chat.id,
+            call.message.message_id
         )

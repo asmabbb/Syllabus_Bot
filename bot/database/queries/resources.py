@@ -35,3 +35,17 @@ def get_resources(subject_id, category):
     conn.close()
 
     return data
+
+
+def delete_resource(resource_id):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        "DELETE FROM resources WHERE id = %s",
+        (resource_id,)
+    )
+
+    conn.commit()
+    cur.close()
+    conn.close()
