@@ -49,6 +49,9 @@ def register_syllabus(bot):
 
         print(f"[NAVIGATION] Received: {text}")
 
+        if text == "📚 Syllabus":
+            return
+
         # BACK
         if text == "⬅ Back":
             prev = back(chat_id)
@@ -58,6 +61,8 @@ def register_syllabus(bot):
 
         # MAJOR
         majors = get_majors()
+
+        print(f"[DEBUG] majors from DB: {majors}")
 
         for m in majors:
             if text.strip() == m[1].strip():
@@ -124,7 +129,17 @@ def register_syllabus(bot):
 
         # CATEGORY
         if "subject_id" in user_state.get(chat_id, {}):
-            category = text.lower()
+            mapping = {
+                "Exam": "exam",
+                "Books & Lectures": "books",
+                "Other Resources": "other"
+            }
+
+            category = mapping.get(text)
+
+            if not category:
+                print(f"[ERROR] Unknown category: {text}")
+                return
 
             resources = get_resources(
                 user_state[chat_id]["subject_id"],
@@ -158,7 +173,7 @@ def register_syllabus(bot):
 
         print(f"[WARNING] Unhandled input: {text}")
 
-    bot.message_handler(func=lambda m: m.text is not None)(navigation)
+    bot.message_handler(func=lambda m: True, content_types=['text'])(navigation)
 
 
     def send_titles_page(bot, chat_id, page):
