@@ -50,14 +50,40 @@ def update_major(major_id, name):
     conn.close()
 
 
+from bot.database.connection import get_connection
+
 def delete_major(major_id):
     conn = get_connection()
     cur = conn.cursor()
 
-    cur.execute(
-        "DELETE FROM majors WHERE id = %s",
-        (major_id,)
-    )
+    # 1. Delete resources (deepest level)
+    cur.execute("""
+        DELETE FROM resources
+        WHERE subject_id IN (
+            SELECT id FROM subjects
+            WHERE semester_id IN (
+                SELECT id FROM semesters WHERE major_id = %s
+            )
+        )
+    """, (major_id,))
+
+    # 2. Delete subjects
+    cur.execute("""
+        DELETE FROM subjects
+        WHERE semester_id IN (
+            SELECT id FROM semesters WHERE major_id = %s
+        )
+    """, (major_id,))
+
+    # 3. Delete semesters
+    cur.execute("""
+        DELETE FROM semesters WHERE major_id = %s
+    """, (major_id,))
+
+    # 4. Delete the major
+    cur.execute("""
+        DELETE FROM majors WHERE id = %s
+    """, (major_id,))
 
     conn.commit()
     cur.close()
