@@ -207,9 +207,10 @@ def register_syllabus(bot):
             )
 
         nav = pagination_keyboard("titles", page, len(titles))
-        if nav.keyboard:
-            for row in nav.keyboard:
-                markup.row(*row)
+        # COMMENT THIS OUT for now
+        # if nav.keyboard:
+        #     for row in nav.keyboard:
+        #         markup.row(*row)
 
         bot.send_message(chat_id, "📚 Choose Resource Title:", reply_markup=markup)
 
@@ -299,7 +300,9 @@ def register_syllabus(bot):
         send_files_page(bot, chat_id, title, page, call.message.message_id)
 
     bot.callback_query_handler(func=lambda c: c.data.startswith("title:"))(open_title)
-
+    @bot.callback_query_handler(func=lambda call: True)
+    def debug_all_callbacks(call):
+        print(f"[CALLBACK RECEIVED]: {call.data}")
 
     def send_file(call):
         try:

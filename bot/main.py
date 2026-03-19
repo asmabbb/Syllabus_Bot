@@ -28,14 +28,14 @@ def run_web():
 
 # ---- Start Everything ---- 
 
-init_db()
+if __name__ == "__main__":
+    init_db()
 
 # Register handlers
-register_admin_panel(bot)
-register_syllabus(bot)
+    register_admin_panel(bot)
+    register_syllabus(bot)
 
+    bot.remove_webhook()
+    threading.Thread(target=lambda: bot.infinity_polling()).start()
 
-# Start web server in seperate thread
-threading.Thread(target=run_web).start()
-
-app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
