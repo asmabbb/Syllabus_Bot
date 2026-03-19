@@ -198,11 +198,10 @@ def register_syllabus(bot):
 
         for title in page_items:
             display = data["title_map"][title]
-            safe_title = urllib.parse.quote(title)
             markup.add(
                 InlineKeyboardButton(
                     f"📘 {display}",
-                    callback_data=f"title:{safe_title}:page:0"
+                    callback_data=f"title:{title}:0"
                 )
             )
 
@@ -222,8 +221,8 @@ def register_syllabus(bot):
 
         title_key = title.strip().lower()
 
-        print(f"[DEBUG] send_files_page title key: '{title_key}'")
-        print(f"[DEBUG] available keys: {list(data['grouped'].keys())}")
+        print(f"[DEBUG] Requested: '{title_key}'")
+        print(f"[DEBUG] Available: {list(data['grouped'].keys())}")
 
         items = data["grouped"].get(title_key)
 
@@ -253,8 +252,7 @@ def register_syllabus(bot):
             )
 
         # pagination
-        safe_title = urllib.parse.quote(title)
-        nav = pagination_keyboard(f"title:{safe_title}", page, len(items))
+        nav = pagination_keyboard(f"title:{title}", page, len(items))
         if nav.keyboard:
             for row in nav.keyboard:
                 markup.row(*row)
@@ -283,26 +281,22 @@ def register_syllabus(bot):
     bot.callback_query_handler(func=lambda c: c.data == "back_titles")(back_to_titles)
 
 
-    def title_page_handler(call):
-        # Handles pagination inside a specific title's file list
+    def open_title(call):
         try:
-            # Format: title:<encoded_title>:page:<page>
-            _, encoded_title, _, page = call.data.split(":", 3)
+            _, title, page = call.data.split(":", 2)
             page = int(page)
         except Exception as e:
-            print(f"[ERROR] title handler failed: {call.data} | {e}")
+            print(f"[ERROR] open_title failed: {call.data} | {e}")
             return
 
-        title_key = urllib.parse.unquote(encoded_title).strip().lower()
+        title = title.strip().lower()
         chat_id = call.message.chat.id
 
-        print(f"[DEBUG] Opening title: {title_key}")
+        print(f"[DEBUG] Opening title: '{title}'")
 
-        send_files_page(bot, chat_id, title_key, page, call.message.message_id)
+        send_files_page(bot, chat_id, title, page, call.message.message_id)
 
-    bot.callback_query_handler(
-        func=lambda c: c.data.startswith("title:") and ":page:" in c.data
-    )(title_page_handler)
+    bot.callback_query_handler(func=lambda c: c.data.startswith("title:"))(open_title)
 
 
     def send_file(call):
