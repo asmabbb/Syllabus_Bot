@@ -150,10 +150,17 @@ def register_syllabus(bot):
                 bot.send_message(chat_id, "No resources found.")
                 return
 
-            grouped = defaultdict(list)
+            grouped = {}
+            title_map = {}
 
             for title, file_id, year, season in resources:
-                grouped[title].append((file_id, year, season))
+                clean = title.strip().lower()
+
+                if clean not in grouped:
+                    grouped[clean] = []
+                    title_map[clean] = title  # keep original
+
+                grouped[clean].append((file_id, year, season))
 
             sorted_titles = sorted(
                 grouped.keys(),
@@ -165,6 +172,7 @@ def register_syllabus(bot):
             resource_state[chat_id] = {
                 "grouped": grouped,
                 "titles": sorted_titles,
+                "title_map": title_map,
                 "category": category
             }
 
@@ -189,10 +197,11 @@ def register_syllabus(bot):
         markup = InlineKeyboardMarkup()
 
         for title in page_items:
+            display = data["title_map"][title]
             safe_title = urllib.parse.quote(title)
             markup.add(
                 InlineKeyboardButton(
-                    f"📘 {title}",
+                    f"📘 {display}",
                     callback_data=f"title:{safe_title}:page:0"
                 )
             )
@@ -270,9 +279,7 @@ def register_syllabus(bot):
         title = urllib.parse.unquote(encoded_title)
         chat_id = call.message.chat.id
 
-        send_files_page(bot, chat_id, title, page, call.message.message_id)
-
-    bot.callback_query_handler(func=lambda c: c.data.startswith("title:"))(title_page_handler)
+        
 
 
     def back_to_titles(call):
@@ -290,15 +297,20 @@ def register_syllabus(bot):
             # Format: title:<encoded_title>:page:<page>
             _, encoded_title, _, page = call.data.split(":", 3)
             page = int(page)
-        except Exception:
+        except Exception as e:
+            print(f"[ERROR] title handler failed: {call.data} | {e}")
             return
 
         title = urllib.parse.unquote(encoded_title)
         chat_id = call.message.chat.id
 
+        print(f"[DEBUG] Opening title: {title}")
+
         send_files_page(bot, chat_id, title, page, call.message.message_id)
 
-    bot.callback_query_handler(func=lambda c: c.data.startswith("title:") and ":page:" in c.data)(title_page_handler)
+    bot.callback_query_handler(
+        func=lambda c: c.data.startswith("title:") and ":page:" in c.data
+    )(title_page_handler)
 
 
     def send_file(call):
