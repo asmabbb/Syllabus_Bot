@@ -259,27 +259,14 @@ def register_syllabus(bot):
             InlineKeyboardButton("⬅ Back", callback_data="back_titles")
         )
 
+        display = data["title_map"].get(title, title)
+
         bot.edit_message_text(
-            f"📘 {title}",
+            f"📘 {display}",
             chat_id,
             message_id,
             reply_markup=markup
         )
-
-
-    def title_page_handler(call):
-        # Handles pagination inside a specific title's file list
-        try:
-            # Format: title:<encoded_title>:page:<page>
-            _, encoded_title, _, page = call.data.split(":", 3)
-            page = int(page)
-        except Exception:
-            return
-
-        title = urllib.parse.unquote(encoded_title)
-        chat_id = call.message.chat.id
-
-        
 
 
     def back_to_titles(call):
