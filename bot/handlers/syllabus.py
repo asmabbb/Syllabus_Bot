@@ -220,7 +220,12 @@ def register_syllabus(bot):
         if not data:
             return
 
-        items = data["grouped"].get(title)
+        title_key = title.strip().lower()
+
+        print(f"[DEBUG] send_files_page title key: '{title_key}'")
+        print(f"[DEBUG] available keys: {list(data['grouped'].keys())}")
+
+        items = data["grouped"].get(title_key)
 
         if not items:
             bot.send_message(chat_id, "No files found for this title.")
@@ -288,12 +293,12 @@ def register_syllabus(bot):
             print(f"[ERROR] title handler failed: {call.data} | {e}")
             return
 
-        title = urllib.parse.unquote(encoded_title)
+        title_key = urllib.parse.unquote(encoded_title).strip().lower()
         chat_id = call.message.chat.id
 
-        print(f"[DEBUG] Opening title: {title}")
+        print(f"[DEBUG] Opening title: {title_key}")
 
-        send_files_page(bot, chat_id, title, page, call.message.message_id)
+        send_files_page(bot, chat_id, title_key, page, call.message.message_id)
 
     bot.callback_query_handler(
         func=lambda c: c.data.startswith("title:") and ":page:" in c.data
