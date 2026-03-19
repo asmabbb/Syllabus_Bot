@@ -131,8 +131,8 @@ def register_syllabus(bot):
         if "subject_id" in user_state.get(chat_id, {}):
             mapping = {
                 "Exam": "exam",
-                "Books & Lectures": "books",
-                "Other Resources": "other"
+                "Books & Lectures": "books & lectures",
+                "Other Resources": "other resources"
             }
 
             category = mapping.get(text)
@@ -193,7 +193,7 @@ def register_syllabus(bot):
             markup.add(
                 InlineKeyboardButton(
                     f"📘 {title}",
-                    callback_data=f"title:{safe_title}:0"
+                    callback_data=f"title:{safe_title}:page:0"
                 )
             )
 
@@ -211,7 +211,11 @@ def register_syllabus(bot):
         if not data:
             return
 
-        items = data["grouped"][title]
+        items = data["grouped"].get(title)
+
+        if not items:
+            bot.send_message(chat_id, "No files found for this title.")
+            return
 
         def season_order(season):
             return {"fall": 3, "summer": 2, "spring": 1}.get(season, 0)
@@ -254,14 +258,11 @@ def register_syllabus(bot):
         )
 
 
-    def open_title(call):
-
-        # Only handle title selection callbacks (not pagination callbacks)
-        if ":page:" in call.data:
-            return
-
+    def title_page_handler(call):
+        # Handles pagination inside a specific title's file list
         try:
-            _, encoded_title, page = call.data.split(":", 2)
+            # Format: title:<encoded_title>:page:<page>
+            _, encoded_title, _, page = call.data.split(":", 3)
             page = int(page)
         except Exception:
             return
@@ -271,22 +272,7 @@ def register_syllabus(bot):
 
         send_files_page(bot, chat_id, title, page, call.message.message_id)
 
-    bot.callback_query_handler(func=lambda c: c.data.startswith("title:") and ":page:" not in c.data)(open_title)
-
-
-    def titles_page_handler(call):
-
-        try:
-            _, _, page = call.data.split(":", 2)
-            page = int(page)
-        except Exception:
-            return
-
-        chat_id = call.message.chat.id
-
-        send_titles_page(bot, chat_id, page)
-
-    bot.callback_query_handler(func=lambda c: c.data.startswith("titles:page"))(titles_page_handler)
+    bot.callback_query_handler(func=lambda c: c.data.startswith("title:"))(title_page_handler)
 
 
     def back_to_titles(call):
