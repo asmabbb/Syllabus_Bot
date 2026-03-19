@@ -20,6 +20,7 @@ def home():
 
 def run_web():
     print("Starting bot polling...")
+    bot.remove_webhook()
     bot.infinity_polling(timeout=10, long_polling_timeout=5)
 
 

@@ -198,10 +198,11 @@ def register_syllabus(bot):
 
         for title in page_items:
             display = data["title_map"][title]
+            safe_title = urllib.parse.quote(title)
             markup.add(
                 InlineKeyboardButton(
                     f"📘 {display}",
-                    callback_data=f"title:{title}:0"
+                    callback_data=f"title:{safe_title}:page:0"
                 )
             )
 
@@ -252,7 +253,8 @@ def register_syllabus(bot):
             )
 
         # pagination
-        nav = pagination_keyboard(f"title:{title}", page, len(items))
+        safe_title = urllib.parse.quote(title)
+        nav = pagination_keyboard(f"title:{safe_title}", page, len(items))
         if nav.keyboard:
             for row in nav.keyboard:
                 markup.row(*row)
@@ -283,13 +285,13 @@ def register_syllabus(bot):
 
     def open_title(call):
         try:
-            _, title, page = call.data.split(":", 2)
+            _, encoded_title, _, page = call.data.split(":", 3)
             page = int(page)
         except Exception as e:
             print(f"[ERROR] open_title failed: {call.data} | {e}")
             return
 
-        title = title.strip().lower()
+        title = urllib.parse.unquote(encoded_title).strip().lower()
         chat_id = call.message.chat.id
 
         print(f"[DEBUG] Opening title: '{title}'")
