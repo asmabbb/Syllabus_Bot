@@ -12,10 +12,6 @@ import os
 register_admin_panel(bot)
 register_syllabus(bot)
 
-@bot.callback_query_handler(func=lambda c: True)
-def test_callback(call):
-    print("🔥 CALLBACK WORKS:", call.data)
-    call.answer()
 
 app = Flask(__name__)
 
