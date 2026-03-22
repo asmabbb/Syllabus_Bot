@@ -44,6 +44,46 @@ def get_resources(subject_id, category):
     return data
 
 
+def get_all_resources():
+    """Debug function to get all resources"""
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT r.title, r.category, s.name as subject_name, m.name as major_name
+        FROM resources r
+        JOIN subjects s ON r.subject_id = s.id
+        JOIN semesters sem ON s.semester_id = sem.id
+        JOIN majors m ON sem.major_id = m.id
+    """)
+
+    data = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return data
+
+
+def get_categories_for_subject(subject_id):
+    """Debug function to get categories for a subject"""
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT DISTINCT category
+        FROM resources
+        WHERE subject_id = %s
+    """, (subject_id,))
+
+    data = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return data
+
+
 def delete_resource(resource_id):
     conn = get_connection()
     cur = conn.cursor()

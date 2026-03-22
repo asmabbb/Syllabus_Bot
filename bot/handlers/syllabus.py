@@ -5,7 +5,8 @@ from telebot.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeybo
 from bot.database.queries.majors import get_majors
 from bot.database.queries.semesters import get_semester_id
 from bot.database.queries.subjects import get_subjects
-from bot.database.queries.resources import get_resources
+from bot.database.queries.resources import get_resources, get_all_resources, get_categories_for_subject
+from bot.config import ADMINS
 from bot.database.queries.semesters import get_semesters_by_major
 from bot.utils.pagination import paginate, pagination_keyboard
 
@@ -41,6 +42,17 @@ def register_syllabus(bot):
         bot.send_message(message.chat.id, "Choose Major:", reply_markup=markup)
 
     bot.message_handler(func=lambda m: m.text == "📚 Syllabus")(syllabus)
+
+    @bot.message_handler(func=lambda m: m.text == "/debug_resources")
+    def debug_resources(message):
+        if message.from_user.id not in ADMINS:
+            return
+
+        try:
+            all_resources = get_all_resources()
+            bot.send_message(message.chat.id, f"All resources in DB ({len(all_resources)}): {all_resources[:5]}...")  # Show first 5
+        except Exception as e:
+            bot.send_message(message.chat.id, f"DB Error: {e}")
 
     def navigation(message):
 
@@ -141,10 +153,18 @@ def register_syllabus(bot):
                 print(f"[ERROR] Unknown category: {text}")
                 return
 
+            print(f"[DEBUG] Fetching resources for subject_id={user_state[chat_id]['subject_id']}, category='{category}'")
+
+            # Debug: show available categories for this subject
+            available_categories = get_categories_for_subject(user_state[chat_id]["subject_id"])
+            print(f"[DEBUG] Available categories for this subject: {available_categories}")
+
             resources = get_resources(
                 user_state[chat_id]["subject_id"],
                 category
             )
+
+            print(f"[DEBUG] Found {len(resources)} resources: {resources}")
 
             if not resources:
                 bot.send_message(chat_id, "No resources found.")
