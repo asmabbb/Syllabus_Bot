@@ -50,7 +50,7 @@ def open_title(call):
 
     print(f"[DEBUG] Opening title: {title}")
 
-    send_files_page(call.bot, chat_id, title, page)
+    send_files_page(call.bot, chat_id, title, page, call)
 
 
 def send_file(call):
@@ -283,13 +283,13 @@ def send_titles_page(bot, chat_id, page):
     bot.send_message(chat_id, "📚 Choose Resource Title:", reply_markup=markup)
 
 
-def send_files_page(bot, chat_id, title, page):
+def send_files_page(bot, chat_id, title, page, call):
 
     data = resource_state.get(chat_id)
     if not data:
         return
 
-    items = data["grouped"].get(normalize(title))
+    items = data["grouped"].get(title)
     if not items:
         bot.send_message(chat_id, "No files found.")
         return
@@ -313,12 +313,27 @@ def send_files_page(bot, chat_id, title, page):
     safe_title = urllib.parse.quote(title)
     nav = pagination_keyboard(f"title:{safe_title}", page, len(items))
     if nav.keyboard:
-        for row in nav.keyboard:
-            markup.row(*row)
+        for i, _ in enumerate(page_items):
+            markup.add(InlineKeyboardButton(
+                str(i+1),
+                callback_data=f"title:{safe_title}:page:{i}"
+            ))
 
     markup.add(InlineKeyboardButton("⬅ Back", callback_data="back_titles"))
 
-    bot.send_message(chat_id, f"📘 {data['title_map'][title]}", reply_markup=markup)
+    try:
+        bot.edit_message_text(
+            f"📘 {data['title_map'][title]}",
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            reply_markup=markup
+        )
+    except Exception:
+        bot.send_message(
+            call.message.chat.id,
+            f"📘 {data['title_map'][title]}",
+            reply_markup=markup
+        )
 
     print(f"[DEBUG] Looking for: '{title}'")
     print(f"[DEBUG] Available keys: {list(data['grouped'].keys())}")
