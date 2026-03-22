@@ -77,13 +77,13 @@ def titles_pagination(call):
     except:
         return
 
-    send_titles_page(call.bot, call.message.chat.id, page)
+    send_titles_page(call.bot, call.message.chat.id, page, call.message.message_id)
 
 
 def back_to_titles(call):
     call.answer()
 
-    send_titles_page(call.bot, call.message.chat.id, 0)
+    send_titles_page(call.bot, call.message.chat.id, 0, call.message.message_id)
 
 
 # =========================
@@ -253,7 +253,7 @@ def register_syllabus(bot):
 # UI FUNCTIONS
 # =========================
 
-def send_titles_page(bot, chat_id, page):
+def send_titles_page(bot, chat_id, page, message_id=None):
 
     data = resource_state.get(chat_id)
     if not data:
@@ -280,8 +280,19 @@ def send_titles_page(bot, chat_id, page):
         for row in nav.keyboard:
             markup.row(*row)
 
-    bot.send_message(chat_id, "📚 Choose Resource Title:", reply_markup=markup)
-
+    if message_id:
+        bot.edit_message_text(
+            "📚 Choose Resource Title:",
+            chat_id,
+            message_id,
+            reply_markup=markup
+        )
+    else:
+        bot.send_message(
+            chat_id,
+            "📚 Choose Resource Title:",
+            reply_markup=markup
+        )
 
 def send_files_page(bot, chat_id, title, page, call):
 
@@ -311,29 +322,17 @@ def send_files_page(bot, chat_id, title, page, call):
         )
 
     safe_title = urllib.parse.quote(title)
+
     nav = pagination_keyboard(f"title:{safe_title}", page, len(items))
     if nav.keyboard:
-        for i, _ in enumerate(page_items):
-            markup.add(InlineKeyboardButton(
-                str(i+1),
-                callback_data=f"title:{safe_title}:page:{i}"
-            ))
+        for row in nav.keyboard:
+            markup.row(*row)
 
     markup.add(InlineKeyboardButton("⬅ Back", callback_data="back_titles"))
 
-    try:
-        bot.edit_message_text(
-            f"📘 {data['title_map'][title]}",
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            reply_markup=markup
-        )
-    except Exception:
-        bot.send_message(
-            call.message.chat.id,
-            f"📘 {data['title_map'][title]}",
-            reply_markup=markup
-        )
-
-    print(f"[DEBUG] Looking for: '{title}'")
-    print(f"[DEBUG] Available keys: {list(data['grouped'].keys())}")
+    bot.edit_message_text(
+        f"📘 {data['title_map'][title]}",
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id,
+        reply_markup=markup
+    )
