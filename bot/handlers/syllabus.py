@@ -323,6 +323,7 @@ def register_syllabus(bot):
         send_files_page(bot, chat_id, title, page, call.message.message_id)
 
 
+    bot.callback_query_handler(func=lambda c: c.data.startswith("title:"))(open_title)
 
     def send_file(call):
         try:
@@ -336,17 +337,6 @@ def register_syllabus(bot):
         )
 
     bot.callback_query_handler(func=lambda c: c.data.startswith("file:"))(send_file)
-
-
-    @bot.callback_query_handler(func=lambda c: c.data.startswith("titles:page:"))
-    def titles_pagination(call):
-        try:
-            _, _, page = call.data.split(":")
-            page = int(page)
-        except:
-            return
-
-        send_titles_page(bot, call.message.chat.id, page)
 
 
     @bot.callback_query_handler(func=lambda c: c.data.startswith("titles:page:"))
