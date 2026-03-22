@@ -290,10 +290,9 @@ def register_syllabus(bot):
 
         display = data["title_map"].get(title, title)
 
-        bot.edit_message_text(
-            f"📘 {display}",
+        bot.send_message(
             chat_id,
-            message_id,
+            f"📘 {display}",
             reply_markup=markup
         )
 
