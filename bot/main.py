@@ -8,6 +8,15 @@ from flask import Flask
 import threading
 import os
 
+# Register handlers
+register_admin_panel(bot)
+register_syllabus(bot)
+
+@bot.callback_query_handler(func=lambda c: True)
+def test_callback(call):
+    print("🔥 CALLBACK WORKS:", call.data)
+    call.answer()
+
 app = Flask(__name__)
 
 @app.route('/')
@@ -23,9 +32,7 @@ def run_bot():
 if __name__ == "__main__":
     init_db()
 
-    # Register handlers
-    register_admin_panel(bot)
-    register_syllabus(bot)
+    
 
     # Start bot in thread
     threading.Thread(target=run_bot).start()
