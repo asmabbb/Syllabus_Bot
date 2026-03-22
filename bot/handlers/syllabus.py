@@ -25,6 +25,9 @@ def back(chat_id):
     return user_history[chat_id][-1]
 
 
+def normalize(text):
+    return re.sub(r'\s+', ' ', text.strip().lower())
+
 # =========================
 # CALLBACK HANDLERS (GLOBAL)
 # =========================
@@ -42,7 +45,7 @@ def open_title(call):
         print(f"[ERROR] open_title failed: {call.data} | {e}")
         return
 
-    title = urllib.parse.unquote(encoded_title).strip().lower()
+    title = normalize(urllib.parse.unquote(encoded_title))
     chat_id = call.message.chat.id
 
     print(f"[DEBUG] Opening title: {title}")
@@ -222,7 +225,7 @@ def register_syllabus(bot):
             title_map = {}
 
             for title, file_id, year, season in resources:
-                clean = re.sub(r'\s+', ' ', title.strip().lower())
+                clean = normalize(title)
 
                 if clean not in grouped:
                     grouped[clean] = []
@@ -286,7 +289,7 @@ def send_files_page(bot, chat_id, title, page):
     if not data:
         return
 
-    items = data["grouped"].get(title)
+    items = data["grouped"].get(normalize(title))
     if not items:
         bot.send_message(chat_id, "No files found.")
         return
@@ -316,3 +319,6 @@ def send_files_page(bot, chat_id, title, page):
     markup.add(InlineKeyboardButton("⬅ Back", callback_data="back_titles"))
 
     bot.send_message(chat_id, f"📘 {data['title_map'][title]}", reply_markup=markup)
+
+    print(f"[DEBUG] Looking for: '{title}'")
+    print(f"[DEBUG] Available keys: {list(data['grouped'].keys())}")
