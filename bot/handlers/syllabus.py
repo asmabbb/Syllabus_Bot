@@ -1,5 +1,6 @@
 from collections import defaultdict
 import urllib.parse
+import re
 
 from telebot.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
 from bot.database.queries.majors import get_majors
@@ -174,7 +175,7 @@ def register_syllabus(bot):
             title_map = {}
 
             for title, file_id, year, season in resources:
-                clean = title.strip().lower()
+                clean = re.sub(r'\s+', ' ', title.strip().lower())
 
                 if clean not in grouped:
                     grouped[clean] = []
@@ -227,12 +228,14 @@ def register_syllabus(bot):
             )
 
         nav = pagination_keyboard("titles", page, len(titles))
-        # COMMENT THIS OUT for now
-        # if nav.keyboard:
-        #     for row in nav.keyboard:
-        #         markup.row(*row)
+
+        # ✅ FIXED: ENABLE PAGINATION
+        if nav.keyboard:
+            for row in nav.keyboard:
+                markup.row(*row)
 
         bot.send_message(chat_id, "📚 Choose Resource Title:", reply_markup=markup)
+
 
 
     def send_files_page(bot, chat_id, title, page, message_id):
@@ -319,10 +322,7 @@ def register_syllabus(bot):
 
         send_files_page(bot, chat_id, title, page, call.message.message_id)
 
-    bot.callback_query_handler(func=lambda c: c.data.startswith("title:"))(open_title)
-    @bot.callback_query_handler(func=lambda call: True)
-    def debug_all_callbacks(call):
-        print(f"[CALLBACK RECEIVED]: {call.data}")
+
 
     def send_file(call):
         try:
@@ -336,3 +336,25 @@ def register_syllabus(bot):
         )
 
     bot.callback_query_handler(func=lambda c: c.data.startswith("file:"))(send_file)
+
+
+    @bot.callback_query_handler(func=lambda c: c.data.startswith("titles:page:"))
+    def titles_pagination(call):
+        try:
+            _, _, page = call.data.split(":")
+            page = int(page)
+        except:
+            return
+
+        send_titles_page(bot, call.message.chat.id, page)
+
+
+    @bot.callback_query_handler(func=lambda c: c.data.startswith("titles:page:"))
+    def titles_pagination(call):
+        try:
+            _, _, page = call.data.split(":")
+            page = int(page)
+        except:
+            return
+
+        send_titles_page(bot, call.message.chat.id, page)
