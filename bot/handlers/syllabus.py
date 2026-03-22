@@ -1,14 +1,12 @@
-from collections import defaultdict
 import urllib.parse
 import re
 
 from telebot.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
 from bot.database.queries.majors import get_majors
-from bot.database.queries.semesters import get_semester_id
+from bot.database.queries.semesters import get_semester_id, get_semesters_by_major
 from bot.database.queries.subjects import get_subjects
 from bot.database.queries.resources import get_resources, get_all_resources, get_categories_for_subject
 from bot.config import ADMINS
-from bot.database.queries.semesters import get_semesters_by_major
 from bot.utils.pagination import paginate, pagination_keyboard
 
 user_state = {}
@@ -27,8 +25,69 @@ def back(chat_id):
     return user_history[chat_id][-1]
 
 
+# =========================
+# CALLBACK HANDLERS (GLOBAL)
+# =========================
+
+def open_title(call):
+    print(f"[CALLBACK] {call.data}")
+
+    try:
+        _, encoded_title, _, page = call.data.split(":", 3)
+        page = int(page)
+    except Exception as e:
+        print(f"[ERROR] open_title failed: {call.data} | {e}")
+        return
+
+    title = urllib.parse.unquote(encoded_title).strip().lower()
+    chat_id = call.message.chat.id
+
+    print(f"[DEBUG] Opening title: {title}")
+
+    send_files_page(call.bot, chat_id, title, page)
+
+
+def send_file(call):
+    print(f"[CALLBACK] file -> {call.data}")
+
+    try:
+        _, file_id = call.data.split(":", 1)
+    except ValueError:
+        return
+
+    call.bot.send_document(call.message.chat.id, file_id)
+
+
+def titles_pagination(call):
+    print(f"[CALLBACK] pagination -> {call.data}")
+
+    try:
+        _, _, page = call.data.split(":")
+        page = int(page)
+    except:
+        return
+
+    send_titles_page(call.bot, call.message.chat.id, page)
+
+
+def back_to_titles(call):
+    send_titles_page(call.bot, call.message.chat.id, 0)
+
+
+# =========================
+# MAIN REGISTER FUNCTION
+# =========================
+
 def register_syllabus(bot):
 
+    # ===== Register Callbacks FIRST =====
+    bot.callback_query_handler(func=lambda c: c.data.startswith("title:"))(open_title)
+    bot.callback_query_handler(func=lambda c: c.data.startswith("file:"))(send_file)
+    bot.callback_query_handler(func=lambda c: c.data.startswith("titles:page:"))(titles_pagination)
+    bot.callback_query_handler(func=lambda c: c.data == "back_titles")(back_to_titles)
+
+    # ===== Syllabus Entry =====
+    @bot.message_handler(func=lambda m: m.text == "📚 Syllabus")
     def syllabus(message):
 
         majors = get_majors()
@@ -42,8 +101,7 @@ def register_syllabus(bot):
 
         bot.send_message(message.chat.id, "Choose Major:", reply_markup=markup)
 
-    bot.message_handler(func=lambda m: m.text == "📚 Syllabus")(syllabus)
-
+    # ===== Debug =====
     @bot.message_handler(func=lambda m: m.text == "/debug_resources")
     def debug_resources(message):
         if message.from_user.id not in ADMINS:
@@ -51,21 +109,22 @@ def register_syllabus(bot):
 
         try:
             all_resources = get_all_resources()
-            bot.send_message(message.chat.id, f"All resources in DB ({len(all_resources)}): {all_resources[:5]}...")  # Show first 5
+            bot.send_message(message.chat.id, f"{all_resources[:5]}")
         except Exception as e:
             bot.send_message(message.chat.id, f"DB Error: {e}")
 
+    # ===== Navigation =====
+    @bot.message_handler(func=lambda m: True, content_types=['text'])
     def navigation(message):
 
         chat_id = message.chat.id
         text = message.text
 
-        print(f"[NAVIGATION] Received: {text}")
+        print(f"[NAVIGATION] {text}")
 
         if text == "📚 Syllabus":
             return
 
-        # BACK
         if text == "⬅ Back":
             prev = back(chat_id)
             if prev:
@@ -73,14 +132,8 @@ def register_syllabus(bot):
             return
 
         # MAJOR
-        majors = get_majors()
-
-        print(f"[DEBUG] majors from DB: {majors}")
-
-        for m in majors:
+        for m in get_majors():
             if text.strip() == m[1].strip():
-
-                print(f"[MATCH] Selected major: {m[1]}")
 
                 user_state[chat_id] = {"major_id": m[0]}
 
@@ -89,11 +142,9 @@ def register_syllabus(bot):
                 markup = ReplyKeyboardMarkup(resize_keyboard=True)
                 for s in semesters:
                     markup.add(f"Semester {s}")
-
                 markup.add("⬅ Back")
 
                 push(chat_id, markup)
-
                 bot.send_message(chat_id, "Choose Semester:", reply_markup=markup)
                 return
 
@@ -110,11 +161,9 @@ def register_syllabus(bot):
                 markup = ReplyKeyboardMarkup(resize_keyboard=True)
                 for s in subjects:
                     markup.add(s[1])
-
                 markup.add("⬅ Back")
 
                 push(chat_id, markup)
-
                 bot.send_message(chat_id, "Choose Subject:", reply_markup=markup)
                 return
 
@@ -136,7 +185,6 @@ def register_syllabus(bot):
                     markup.add("⬅ Back")
 
                     push(chat_id, markup)
-
                     bot.send_message(chat_id, "Choose Type:", reply_markup=markup)
                     return
 
@@ -149,23 +197,13 @@ def register_syllabus(bot):
             }
 
             category = mapping.get(text)
-
             if not category:
-                print(f"[ERROR] Unknown category: {text}")
                 return
-
-            print(f"[DEBUG] Fetching resources for subject_id={user_state[chat_id]['subject_id']}, category='{category}'")
-
-            # Debug: show available categories for this subject
-            available_categories = get_categories_for_subject(user_state[chat_id]["subject_id"])
-            print(f"[DEBUG] Available categories for this subject: {available_categories}")
 
             resources = get_resources(
                 user_state[chat_id]["subject_id"],
                 category
             )
-
-            print(f"[DEBUG] Found {len(resources)} resources: {resources}")
 
             if not resources:
                 bot.send_message(chat_id, "No resources found.")
@@ -179,7 +217,7 @@ def register_syllabus(bot):
 
                 if clean not in grouped:
                     grouped[clean] = []
-                    title_map[clean] = title  # keep original
+                    title_map[clean] = title
 
                 grouped[clean].append((file_id, year, season))
 
@@ -189,161 +227,83 @@ def register_syllabus(bot):
                 reverse=True
             )
 
-            # Save everything in state
             resource_state[chat_id] = {
                 "grouped": grouped,
                 "titles": sorted_titles,
-                "title_map": title_map,
-                "category": category
+                "title_map": title_map
             }
 
             send_titles_page(bot, chat_id, 0)
             return
 
-        print(f"[WARNING] Unhandled input: {text}")
 
-    bot.message_handler(func=lambda m: True, content_types=['text'])(navigation)
+# =========================
+# UI FUNCTIONS
+# =========================
 
+def send_titles_page(bot, chat_id, page):
 
-    def send_titles_page(bot, chat_id, page):
+    data = resource_state.get(chat_id)
+    if not data:
+        return
 
-        data = resource_state.get(chat_id)
-        if not data:
-            return
+    titles = data["titles"]
+    page_items = paginate(titles, page)
 
-        titles = data["titles"]
+    markup = InlineKeyboardMarkup()
 
-        page_items = paginate(titles, page)
-
-        markup = InlineKeyboardMarkup()
-
-        for title in page_items:
-            display = data["title_map"][title]
-            safe_title = urllib.parse.quote(title)
-            markup.add(
-                InlineKeyboardButton(
-                    f"📘 {display}",
-                    callback_data=f"title:{safe_title}:page:0"
-                )
-            )
-
-        nav = pagination_keyboard("titles", page, len(titles))
-
-        # ✅ FIXED: ENABLE PAGINATION
-        if nav.keyboard:
-            for row in nav.keyboard:
-                markup.row(*row)
-
-        bot.send_message(chat_id, "📚 Choose Resource Title:", reply_markup=markup)
-
-
-
-    def send_files_page(bot, chat_id, title, page, message_id):
-
-        data = resource_state.get(chat_id)
-        if not data:
-            return
-
-        title_key = title.strip().lower()
-
-        print(f"[DEBUG] Requested: '{title_key}'")
-        print(f"[DEBUG] Available: {list(data['grouped'].keys())}")
-
-        items = data["grouped"].get(title_key)
-
-        if not items:
-            bot.send_message(chat_id, "No files found for this title.")
-            return
-
-        def season_order(season):
-            return {"fall": 3, "summer": 2, "spring": 1}.get(season, 0)
-
-        items = sorted(
-            items,
-            key=lambda x: (x[1], season_order(x[2])),
-            reverse=True
-        )
-
-        page_items = paginate(items, page)
-
-        markup = InlineKeyboardMarkup()
-
-        for file_id, year, season in page_items:
-            markup.add(
-                InlineKeyboardButton(
-                    f"{season.capitalize()} {year}",
-                    callback_data=f"file:{file_id}"
-                )
-            )
-
-        # pagination
+    for title in page_items:
+        display = data["title_map"][title]
         safe_title = urllib.parse.quote(title)
-        nav = pagination_keyboard(f"title:{safe_title}", page, len(items))
-        if nav.keyboard:
-            for row in nav.keyboard:
-                markup.row(*row)
 
-        # back button
         markup.add(
-            InlineKeyboardButton("⬅ Back", callback_data="back_titles")
+            InlineKeyboardButton(
+                f"📘 {display}",
+                callback_data=f"title:{safe_title}:page:0"
+            )
         )
 
-        display = data["title_map"].get(title, title)
+    nav = pagination_keyboard("titles", page, len(titles))
+    if nav.keyboard:
+        for row in nav.keyboard:
+            markup.row(*row)
 
-        bot.send_message(
-            chat_id,
-            f"📘 {display}",
-            reply_markup=markup
+    bot.send_message(chat_id, "📚 Choose Resource Title:", reply_markup=markup)
+
+
+def send_files_page(bot, chat_id, title, page):
+
+    data = resource_state.get(chat_id)
+    if not data:
+        return
+
+    items = data["grouped"].get(title)
+    if not items:
+        bot.send_message(chat_id, "No files found.")
+        return
+
+    def season_order(s):
+        return {"fall": 3, "summer": 2, "spring": 1}.get(s, 0)
+
+    items = sorted(items, key=lambda x: (x[1], season_order(x[2])), reverse=True)
+    page_items = paginate(items, page)
+
+    markup = InlineKeyboardMarkup()
+
+    for file_id, year, season in page_items:
+        markup.add(
+            InlineKeyboardButton(
+                f"{season.capitalize()} {year}",
+                callback_data=f"file:{file_id}"
+            )
         )
 
+    safe_title = urllib.parse.quote(title)
+    nav = pagination_keyboard(f"title:{safe_title}", page, len(items))
+    if nav.keyboard:
+        for row in nav.keyboard:
+            markup.row(*row)
 
-    def back_to_titles(call):
+    markup.add(InlineKeyboardButton("⬅ Back", callback_data="back_titles"))
 
-        chat_id = call.message.chat.id
-
-        send_titles_page(bot, chat_id, 0)
-
-    bot.callback_query_handler(func=lambda c: c.data == "back_titles")(back_to_titles)
-
-
-    def open_title(call):
-        try:
-            _, encoded_title, _, page = call.data.split(":", 3)
-            page = int(page)
-        except Exception as e:
-            print(f"[ERROR] open_title failed: {call.data} | {e}")
-            return
-
-        title = urllib.parse.unquote(encoded_title).strip().lower()
-        chat_id = call.message.chat.id
-
-        print(f"[DEBUG] Opening title: '{title}'")
-
-        send_files_page(bot, chat_id, title, page, call.message.message_id)
-
-
-    bot.callback_query_handler(func=lambda c: c.data.startswith("title:"))(open_title)
-
-    def send_file(call):
-        try:
-            _, file_id = call.data.split(":", 1)
-        except ValueError:
-            return
-
-        bot.send_document(
-            call.message.chat.id,
-            file_id
-        )
-
-    bot.callback_query_handler(func=lambda c: c.data.startswith("file:"))(send_file)
-
-
-    @bot.callback_query_handler(func=lambda c: c.data.startswith("titles:page:"))
-    def titles_pagination(call):
-        try:
-            _, _, page = call.data.split(":")
-            page = int(page)
-        except:
-            return
-
-        send_titles_page(bot, call.message.chat.id, page)
+    bot.send_message(chat_id, f"📘 {data['title_map'][title]}", reply_markup=markup)

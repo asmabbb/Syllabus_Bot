@@ -1,13 +1,9 @@
 from bot.bot_instance import bot
-
 from bot.handlers import start
 from bot.handlers.admin_panel import register_admin_panel
 from bot.handlers.syllabus import register_syllabus
-
 from bot.database.db import init_db
 
-
-# ----- Flask Server -----
 from flask import Flask
 import threading
 import os
@@ -16,26 +12,23 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "📚 CETSU Syllabus Bot is alive!"
-
-def run_web():
-    print("Starting bot polling...")
-    bot.remove_webhook()
-    bot.infinity_polling(timeout=10, long_polling_timeout=5)
+    return "Bot is alive"
 
 
+def run_bot():
+    print("Bot polling started...")
+    bot.infinity_polling()
 
-
-# ---- Start Everything ---- 
 
 if __name__ == "__main__":
     init_db()
 
-# Register handlers
+    # Register handlers
     register_admin_panel(bot)
     register_syllabus(bot)
 
-    bot.remove_webhook()
-    threading.Thread(target=run_web).start()
+    # Start bot in thread
+    threading.Thread(target=run_bot).start()
 
+    # Start web server
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
