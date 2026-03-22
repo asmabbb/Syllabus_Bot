@@ -30,6 +30,9 @@ def back(chat_id):
 # =========================
 
 def open_title(call):
+    call.answer()
+
+
     print(f"[CALLBACK] {call.data}")
 
     try:
@@ -48,6 +51,8 @@ def open_title(call):
 
 
 def send_file(call):
+    call.answer()
+
     print(f"[CALLBACK] file -> {call.data}")
 
     try:
@@ -59,6 +64,8 @@ def send_file(call):
 
 
 def titles_pagination(call):
+    call.answer()
+
     print(f"[CALLBACK] pagination -> {call.data}")
 
     try:
@@ -71,6 +78,8 @@ def titles_pagination(call):
 
 
 def back_to_titles(call):
+    call.answer()
+
     send_titles_page(call.bot, call.message.chat.id, 0)
 
 
