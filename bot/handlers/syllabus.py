@@ -267,43 +267,67 @@ def register_syllabus(bot):
 
             category = mapping.get(text)
             if not category:
+                print(f"[DEBUG] Unknown category text: '{text}'")
                 return
+
+            print(f"[DEBUG] Fetching resources for subject_id={user_state[chat_id]['subject_id']}, category='{category}'")
+
+            # Debug: show available categories for this subject
+            available_categories = get_categories_for_subject(user_state[chat_id]["subject_id"])
+            print(f"[DEBUG] Available categories for this subject: {available_categories}")
 
             resources = get_resources(
                 user_state[chat_id]["subject_id"],
                 category
             )
 
+            print(f"[DEBUG] Found {len(resources)} resources")
+
             if not resources:
                 bot.send_message(chat_id, "No resources found.")
                 return
 
-            grouped = {}
-            title_map = {}
+            try:
+                grouped = {}
+                title_map = {}
 
-            for title, file_id, year, season in resources:
-                clean = normalize(title)
+                for title, file_id, year, season in resources:
+                    if not title or not file_id:
+                        continue
 
-                if clean not in grouped:
-                    grouped[clean] = []
-                    title_map[clean] = title
+                    clean = normalize(title)
+                    year = year or 0
+                    season = season or ''
 
-                grouped[clean].append((file_id, year, season))
+                    if clean not in grouped:
+                        grouped[clean] = []
+                        title_map[clean] = title
 
-            sorted_titles = sorted(
-                grouped.keys(),
-                key=lambda t: max((y, s) for _, y, s in grouped[t]),
-                reverse=True
-            )
+                    grouped[clean].append((file_id, year, season))
 
-            resource_state[chat_id] = {
-                "grouped": grouped,
-                "titles": sorted_titles,
-                "title_map": title_map
-            }
+                if not grouped:
+                    bot.send_message(chat_id, "No valid resources found.")
+                    return
 
-            send_titles_page(chat_id, 0)
-            return
+                sorted_titles = sorted(
+                    grouped.keys(),
+                    key=lambda t: max((y, s) for _, y, s in grouped[t]),
+                    reverse=True
+                )
+
+                resource_state[chat_id] = {
+                    "grouped": grouped,
+                    "titles": sorted_titles,
+                    "title_map": title_map
+                }
+
+                print(f"[DEBUG] Grouped into {len(sorted_titles)} titles")
+                send_titles_page(chat_id, 0)
+
+            except Exception as e:
+                print(f"[ERROR] Resource processing failed: {e}")
+                bot.send_message(chat_id, f"Error processing resources: {e}")
+                return
 
 
 # =========================
@@ -314,9 +338,16 @@ def send_titles_page(chat_id, page, message_id=None):
 
     data = resource_state.get(chat_id)
     if not data:
+        print(f"[ERROR] send_titles_page: no data for chat_id {chat_id}")
         return
 
     titles = data.get("titles", [])
+    print(f"[DEBUG] send_titles_page: {len(titles)} titles, page {page}")
+
+    if not titles:
+        print("[DEBUG] No titles to display")
+        return
+
     page_items = paginate(titles, page)
 
     markup = InlineKeyboardMarkup()
@@ -337,19 +368,25 @@ def send_titles_page(chat_id, page, message_id=None):
         for row in nav.keyboard:
             markup.row(*row)
 
-    if message_id:
-        global_bot.edit_message_text(
-            "📚 Choose Resource Title:",
-            chat_id,
-            message_id,
-            reply_markup=markup
-        )
-    else:
-        global_bot.send_message(
-            chat_id,
-            "📚 Choose Resource Title:",
-            reply_markup=markup
-        )
+    try:
+        if message_id:
+            global_bot.edit_message_text(
+                "📚 Choose Resource Title:",
+                chat_id,
+                message_id,
+                reply_markup=markup
+            )
+            print("[DEBUG] send_titles_page: edited message")
+        else:
+            global_bot.send_message(
+                chat_id,
+                "📚 Choose Resource Title:",
+                reply_markup=markup
+            )
+            print("[DEBUG] send_titles_page: sent new message")
+    except Exception as e:
+        print(f"[ERROR] send_titles_page failed: {e}")
+        global_bot.send_message(chat_id, f"Error displaying titles: {e}")
 
 
 def send_files_page(chat_id, title, title_index, page, call):
