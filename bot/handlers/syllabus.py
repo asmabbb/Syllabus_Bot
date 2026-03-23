@@ -98,7 +98,7 @@ def register_syllabus(bot):
             if sent_count == 0:
                 bot.send_message(chat_id, "Failed to send any files.")
             else:
-                bot.send_message(chat_id, f"✅ Sent {sent_count} file(s). Send another number to view more resources.")
+                bot.send_message(chat_id, f"✅ Sent {sent_count} file(s). Send another number to view more resources, or /back to menu.")
 
         except Exception as e:
             print(f"[ERROR] handle_title_number failed: {e}")
@@ -151,11 +151,25 @@ def register_syllabus(bot):
             reply_markup=main_menu(is_admin)
         )
 
-    @bot.message_handler(func=lambda m: m.text == "/back" and resource_state.get(m.chat.id, {}).get("viewing_titles"))
+    @bot.message_handler(commands=['back'])
     def handle_back(message):
         chat_id = message.chat.id
-        if chat_id in resource_state:
+
+        # If user was viewing titles → go to categories directly
+        if resource_state.get(chat_id, {}).get("viewing_titles"):
+
             resource_state[chat_id]["viewing_titles"] = False
+
+            markup = ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add("Exam", "Books & Lectures", "Other Resources")
+            markup.add("⬅ Back")
+
+            push(chat_id, markup)
+
+            bot.send_message(chat_id, "Choose Type:", reply_markup=markup)
+            return
+
+        # Otherwise normal back behavior
         _syllabus_go_back(chat_id, message.from_user.id)
 
     # ===== Navigation =====
@@ -168,7 +182,7 @@ def register_syllabus(bot):
         print(f"[NAVIGATION] {text}")
 
         # Skip navigation if user is viewing titles (handled by specific handlers)
-        if resource_state.get(chat_id, {}).get("viewing_titles"):
+        if resource_state.get(chat_id, {}).get("viewing_titles") and text not in ["⬅ Back"]:
             return
 
         if text == "📚 Syllabus":
@@ -300,6 +314,12 @@ def register_syllabus(bot):
                     "viewing_titles": True
                 }
 
+                # Push categories menu into history before showing titles
+                markup = ReplyKeyboardMarkup(resize_keyboard=True)
+                markup.add("Exam", "Books & Lectures", "Other Resources")
+                markup.add("⬅ Back")
+                push(chat_id, markup)
+
                 print(f"[DEBUG] Grouped into {len(sorted_titles)} titles")
                 send_titles_page(chat_id, 0)
 
@@ -341,7 +361,7 @@ def send_titles_page(chat_id, page, message_id=None):
     total_pages = (len(titles) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
     current_page = page + 1
 
-    full_text = f"📚 Page {current_page}/{total_pages}:\n\n{page_text}\n\nSend the number of the title you want to view its resources.\n\nCommands:⬅️ /prev    -    ➡️ /next \n🔙 /back to menu"
+    full_text = f"📚 Page {current_page}/{total_pages}:\n\n{page_text}\n\nSend the number of the title you want to view its resources.\n\nCommands: ⬅️ /prev    -    ➡️ /next \n🔙 /back to menu"
 
     # Update current page in state
     resource_state[chat_id]["current_page"] = page
