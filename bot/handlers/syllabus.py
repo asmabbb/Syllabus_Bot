@@ -344,11 +344,20 @@ def send_titles_page(chat_id, page, message_id=None):
     nav_buttons = []
     if page > 0:
         nav_buttons.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"titles:page:{page-1}"))
+        print(f"[DEBUG] Added Prev button for page {page}")
 
     if (page + 1) * ITEMS_PER_PAGE < len(titles):
         nav_buttons.append(InlineKeyboardButton("➡️ Next", callback_data=f"titles:page:{page+1}"))
+        print(f"[DEBUG] Added Next button for page {page}, condition: {(page + 1) * ITEMS_PER_PAGE} < {len(titles)}")
+
+    print(f"[DEBUG] nav_buttons count: {len(nav_buttons)}")
+
+    for button in nav_buttons:
+        markup.add(button)
+        print(f"[DEBUG] Added nav button: {button.text}")
 
     markup.add(InlineKeyboardButton("🔙 Back", callback_data="back_titles"))
+    print("[DEBUG] Added Back button")
 
     try:
         if message_id:
