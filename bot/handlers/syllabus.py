@@ -155,18 +155,10 @@ def register_syllabus(bot):
     def handle_back(message):
         chat_id = message.chat.id
 
-        # If user was viewing titles → go to categories directly
+        # If user was viewing titles → go to previous screen (categories)
         if resource_state.get(chat_id, {}).get("viewing_titles"):
-
             resource_state[chat_id]["viewing_titles"] = False
-
-            markup = ReplyKeyboardMarkup(resize_keyboard=True)
-            markup.add("Exam", "Books & Lectures", "Other Resources")
-            markup.add("⬅ Back")
-
-            push(chat_id, markup)
-
-            bot.send_message(chat_id, "Choose Type:", reply_markup=markup)
+            _syllabus_go_back(chat_id, message.from_user.id)
             return
 
         # Otherwise normal back behavior
@@ -181,8 +173,11 @@ def register_syllabus(bot):
 
         print(f"[NAVIGATION] {text}")
 
-        # Skip navigation if user is viewing titles (handled by specific handlers)
-        if resource_state.get(chat_id, {}).get("viewing_titles") and text not in ["⬅ Back"]:
+        # While viewing titles, only respond to ⬅ Back (handled here) and ignore all other navigation
+        if resource_state.get(chat_id, {}).get("viewing_titles"):
+            if text == "⬅ Back":
+                resource_state[chat_id]["viewing_titles"] = False
+                _syllabus_go_back(chat_id, message.from_user.id)
             return
 
         if text == "📚 Syllabus":
@@ -313,12 +308,6 @@ def register_syllabus(bot):
                     "title_map": title_map,
                     "viewing_titles": True
                 }
-
-                # Push categories menu into history before showing titles
-                markup = ReplyKeyboardMarkup(resize_keyboard=True)
-                markup.add("Exam", "Books & Lectures", "Other Resources")
-                markup.add("⬅ Back")
-                push(chat_id, markup)
 
                 print(f"[DEBUG] Grouped into {len(sorted_titles)} titles")
                 send_titles_page(chat_id, 0)
