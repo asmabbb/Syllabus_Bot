@@ -1,7 +1,7 @@
 import urllib.parse
 import re
 
-from telebot.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
+from telebot.types import ReplyKeyboardMarkup
 from bot.bot_instance import bot as global_bot
 from bot.database.queries.majors import get_majors
 from bot.database.queries.semesters import get_semester_id, get_semesters_by_major
@@ -30,89 +30,13 @@ def normalize(text):
     return re.sub(r'\s+', ' ', text.strip().lower())
 
 # =========================
-# CALLBACK HANDLERS (GLOBAL)
-# =========================
-
-def titles_pagination(call):
-    try:
-        print(f"[DEBUG] titles_pagination START: {call.data}")
-        call.answer()
-
-        # Parse page
-        try:
-            _, _, page_str = call.data.split(":")
-            page = int(page_str)
-            print(f"[DEBUG] Parsed page: {page}")
-        except Exception as e:
-            print(f"[ERROR] Failed to parse page from {call.data}: {e}")
-            return
-
-        # Keep user in title view state while paging titles
-        chat_id = call.message.chat.id
-        if chat_id in resource_state:
-            resource_state[chat_id]["viewing_titles"] = True
-
-        print(f"[DEBUG] Calling send_titles_page with chat_id={chat_id}, page={page}, message_id={call.message.message_id}")
-        send_titles_page(chat_id, page, call.message.message_id)
-
-    except Exception as e:
-        print(f"[ERROR] titles_pagination exception: {e}")
-        try:
-            call.answer()
-        except:
-            pass
-
-
-def back_to_category(call):
-    try:
-        print(f"[DEBUG] back_to_category START: {call.data}")
-        call.answer()
-
-        chat_id = call.message.chat.id
-
-        # Keep title view state false because we are escaping to category select
-        if chat_id in resource_state:
-            resource_state[chat_id]["viewing_titles"] = False
-
-        # Optionally clear page state
-        resource_state.pop(chat_id, None)
-
-        # Return to category options (same subject)
-        current_subject = user_state.get(chat_id, {}).get("subject_id")
-        if not current_subject:
-            global_bot.send_message(chat_id, "Please pick a subject again.")
-            return
-
-        markup = ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add("Exam", "Books & Lectures", "Other Resources")
-        markup.add("⬅ Back")
-
-        push(chat_id, markup)
-        global_bot.send_message(chat_id, "Choose Type:", reply_markup=markup)
-
-    except Exception as e:
-        print(f"[ERROR] back_to_category exception: {e}")
-        try:
-            call.answer()
-        except:
-            pass
-
-
-# =========================
 # MAIN REGISTER FUNCTION
 # =========================
 
 def register_syllabus(bot):
 
     # ===== Register Callbacks FIRST =====
-    def is_titles_page(c):
-        return c.data.startswith("titles:page:")
-
-    def is_back_titles(c):
-        return c.data == "back_titles"
-
-    bot.callback_query_handler(func=is_titles_page)(titles_pagination)
-    bot.callback_query_handler(func=is_back_titles)(back_to_category)
+    # Removed inline button callbacks
 
     # ===== Syllabus Entry =====
     @bot.message_handler(func=lambda m: m.text == "📚 Syllabus")
@@ -180,6 +104,55 @@ def register_syllabus(bot):
             print(f"[ERROR] handle_title_number failed: {e}")
             bot.send_message(chat_id, "Invalid input. Please send a valid number.")
 
+    # ===== Command Handlers for Pagination =====
+    @bot.message_handler(func=lambda m: m.text == "/prev" and resource_state.get(m.chat.id, {}).get("viewing_titles"))
+    def handle_prev(message):
+        chat_id = message.chat.id
+        data = resource_state.get(chat_id)
+        if not data:
+            return
+        current_page = data.get("current_page", 0)
+        if current_page > 0:
+            send_titles_page(chat_id, current_page - 1)
+        else:
+            bot.send_message(chat_id, "Already on the first page.")
+
+    @bot.message_handler(func=lambda m: m.text == "/next" and resource_state.get(m.chat.id, {}).get("viewing_titles"))
+    def handle_next(message):
+        chat_id = message.chat.id
+        data = resource_state.get(chat_id)
+        if not data:
+            return
+        current_page = data.get("current_page", 0)
+        titles = data.get("titles", [])
+        total_pages = (len(titles) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
+        if current_page + 1 < total_pages:
+            send_titles_page(chat_id, current_page + 1)
+        else:
+            bot.send_message(chat_id, "Already on the last page.")
+
+    @bot.message_handler(func=lambda m: m.text == "/back" and resource_state.get(m.chat.id, {}).get("viewing_titles"))
+    def handle_back(message):
+        chat_id = message.chat.id
+        # Clear viewing state
+        if chat_id in resource_state:
+            resource_state[chat_id]["viewing_titles"] = False
+        # Go back one step
+        prev_markup = back(chat_id)
+        if prev_markup:
+            bot.send_message(chat_id, "Back", reply_markup=prev_markup)
+        else:
+            # If no history, return to category selection
+            current_subject = user_state.get(chat_id, {}).get("subject_id")
+            if current_subject:
+                markup = ReplyKeyboardMarkup(resize_keyboard=True)
+                markup.add("Exam", "Books & Lectures", "Other Resources")
+                markup.add("⬅ Back")
+                push(chat_id, markup)
+                bot.send_message(chat_id, "Choose Type:", reply_markup=markup)
+            else:
+                bot.send_message(chat_id, "Please start over from syllabus.")
+
     # ===== Navigation =====
     @bot.message_handler(func=lambda m: True, content_types=['text'])
     def navigation(message):
@@ -188,6 +161,10 @@ def register_syllabus(bot):
         text = message.text
 
         print(f"[NAVIGATION] {text}")
+
+        # Skip navigation if user is viewing titles (handled by specific handlers)
+        if resource_state.get(chat_id, {}).get("viewing_titles"):
+            return
 
         if text == "📚 Syllabus":
             return
@@ -361,43 +338,23 @@ def send_titles_page(chat_id, page, message_id=None):
     total_pages = (len(titles) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
     current_page = page + 1
 
-    full_text = f"📚 Page {current_page}/{total_pages}:\n\n{page_text}\n\nSend the number of the title you want to view its resources."
+    full_text = f"📚 Page {current_page}/{total_pages}:\n\n{page_text}\n\nSend the number of the title you want to view its resources.\n\nCommands: /prev /next /back"
 
-    # Create inline keyboard for pagination only
-    markup = InlineKeyboardMarkup()
-
-    nav_buttons = []
-    if page > 0:
-        nav_buttons.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"titles:page:{page-1}"))
-        print(f"[DEBUG] Added Prev button for page {page}")
-
-    if (page + 1) * ITEMS_PER_PAGE < len(titles):
-        nav_buttons.append(InlineKeyboardButton("➡️ Next", callback_data=f"titles:page:{page+1}"))
-        print(f"[DEBUG] Added Next button for page {page}, condition: {(page + 1) * ITEMS_PER_PAGE} < {len(titles)}")
-
-    print(f"[DEBUG] nav_buttons count: {len(nav_buttons)}")
-
-    for button in nav_buttons:
-        markup.add(button)
-        print(f"[DEBUG] Added nav button: {button.text}")
-
-    markup.add(InlineKeyboardButton("🔙 Back", callback_data="back_titles"))
-    print("[DEBUG] Added Back button")
+    # Update current page in state
+    resource_state[chat_id]["current_page"] = page
 
     try:
         if message_id:
             global_bot.edit_message_text(
                 full_text,
                 chat_id,
-                message_id,
-                reply_markup=markup
+                message_id
             )
             print("[DEBUG] send_titles_page: edited message")
         else:
             global_bot.send_message(
                 chat_id,
-                full_text,
-                reply_markup=markup
+                full_text
             )
             print("[DEBUG] send_titles_page: sent new message")
     except Exception as e:
