@@ -34,49 +34,68 @@ def normalize(text):
 # =========================
 
 def titles_pagination(call):
-    call.answer()
-
-    print(f"[CALLBACK] pagination -> {call.data}")
-
     try:
-        _, _, page = call.data.split(":")
-        page = int(page)
+        print(f"[DEBUG] titles_pagination START: {call.data}")
+        call.answer()
+
+        # Parse page
+        try:
+            _, _, page_str = call.data.split(":")
+            page = int(page_str)
+            print(f"[DEBUG] Parsed page: {page}")
+        except Exception as e:
+            print(f"[ERROR] Failed to parse page from {call.data}: {e}")
+            return
+
+        # Keep user in title view state while paging titles
+        chat_id = call.message.chat.id
+        if chat_id in resource_state:
+            resource_state[chat_id]["viewing_titles"] = True
+
+        print(f"[DEBUG] Calling send_titles_page with chat_id={chat_id}, page={page}, message_id={call.message.message_id}")
+        send_titles_page(chat_id, page, call.message.message_id)
+
     except Exception as e:
-        print(f"[ERROR] titles_pagination failed: {call.data} | {e}")
-        return
-
-    # Keep user in title view state while paging titles
-    chat_id = call.message.chat.id
-    if chat_id in resource_state:
-        resource_state[chat_id]["viewing_titles"] = True
-
-    send_titles_page(chat_id, page, call.message.message_id)
+        print(f"[ERROR] titles_pagination exception: {e}")
+        try:
+            call.answer()
+        except:
+            pass
 
 
 def back_to_category(call):
-    call.answer()
+    try:
+        print(f"[DEBUG] back_to_category START: {call.data}")
+        call.answer()
 
-    chat_id = call.message.chat.id
+        chat_id = call.message.chat.id
 
-    # Keep title view state false because we are escaping to category select
-    if chat_id in resource_state:
-        resource_state[chat_id]["viewing_titles"] = False
+        # Keep title view state false because we are escaping to category select
+        if chat_id in resource_state:
+            resource_state[chat_id]["viewing_titles"] = False
 
-    # Optionally clear page state
-    resource_state.pop(chat_id, None)
+        # Optionally clear page state
+        resource_state.pop(chat_id, None)
 
-    # Return to category options (same subject)
-    current_subject = user_state.get(chat_id, {}).get("subject_id")
-    if not current_subject:
-        call.bot.send_message(chat_id, "Please pick a subject again.")
-        return
+        # Return to category options (same subject)
+        current_subject = user_state.get(chat_id, {}).get("subject_id")
+        if not current_subject:
+            global_bot.send_message(chat_id, "Please pick a subject again.")
+            return
 
-    markup = ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("Exam", "Books & Lectures", "Other Resources")
-    markup.add("⬅ Back")
+        markup = ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add("Exam", "Books & Lectures", "Other Resources")
+        markup.add("⬅ Back")
 
-    push(chat_id, markup)
-    call.bot.send_message(chat_id, "Choose Type:", reply_markup=markup)
+        push(chat_id, markup)
+        global_bot.send_message(chat_id, "Choose Type:", reply_markup=markup)
+
+    except Exception as e:
+        print(f"[ERROR] back_to_category exception: {e}")
+        try:
+            call.answer()
+        except:
+            pass
 
 
 # =========================
@@ -86,8 +105,14 @@ def back_to_category(call):
 def register_syllabus(bot):
 
     # ===== Register Callbacks FIRST =====
-    bot.callback_query_handler(func=lambda c: c.data.startswith("titles:page:"))(titles_pagination)
-    bot.callback_query_handler(func=lambda c: c.data == "back_titles")(back_to_category)
+    def is_titles_page(c):
+        return c.data.startswith("titles:page:")
+
+    def is_back_titles(c):
+        return c.data == "back_titles"
+
+    bot.callback_query_handler(func=is_titles_page)(titles_pagination)
+    bot.callback_query_handler(func=is_back_titles)(back_to_category)
 
     # ===== Syllabus Entry =====
     @bot.message_handler(func=lambda m: m.text == "📚 Syllabus")
