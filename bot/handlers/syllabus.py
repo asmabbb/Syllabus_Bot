@@ -33,37 +33,6 @@ def normalize(text):
 # CALLBACK HANDLERS (GLOBAL)
 # =========================
 
-def send_file(call):
-    call.answer()
-
-    print(f"[CALLBACK] file -> {call.data}")
-
-    try:
-        _, title_index, file_index = call.data.split(":", 2)
-        title_index = int(title_index)
-        file_index = int(file_index)
-    except Exception as e:
-        print(f"[ERROR] send_file failed: {call.data} | {e}")
-        return
-
-    chat_id = call.message.chat.id
-    data = resource_state.get(chat_id)
-    if not data:
-        return
-
-    titles = data.get("titles", [])
-    if title_index < 0 or title_index >= len(titles):
-        return
-
-    title = titles[title_index]
-    items = data.get("grouped", {}).get(title)
-    if not items or file_index < 0 or file_index >= len(items):
-        return
-
-    file_id = items[file_index][0]
-    global_bot.send_document(chat_id, file_id)
-
-
 def titles_pagination(call):
     call.answer()
 
@@ -79,42 +48,6 @@ def titles_pagination(call):
     send_titles_page(call.message.chat.id, page, call.message.message_id)
 
 
-def files_pagination(call):
-    call.answer()
-
-    print(f"[CALLBACK] files pagination -> {call.data}")
-
-    try:
-        _, title_index, _, page = call.data.split(":")
-        title_index = int(title_index)
-        page = int(page)
-    except Exception as e:
-        print(f"[ERROR] files_pagination failed: {call.data} | {e}")
-        return
-
-    chat_id = call.message.chat.id
-    data = resource_state.get(chat_id)
-    if not data:
-        return
-
-    titles = data.get("titles", [])
-    if title_index < 0 or title_index >= len(titles):
-        return
-
-    title = titles[title_index]
-    send_files_page(chat_id, title, title_index, page, call)
-
-
-def back_to_titles(call):
-    call.answer()
-
-    chat_id = call.message.chat.id
-    data = resource_state.get(chat_id)
-    if data:
-        data["viewing_titles"] = True  # User is back to viewing titles
-
-    send_titles_page(call.message.chat.id, 0, call.message.message_id)
-
 
 # =========================
 # MAIN REGISTER FUNCTION
@@ -123,10 +56,7 @@ def back_to_titles(call):
 def register_syllabus(bot):
 
     # ===== Register Callbacks FIRST =====
-    bot.callback_query_handler(func=lambda c: c.data.startswith("file:"))(send_file)
     bot.callback_query_handler(func=lambda c: c.data.startswith("titles:page:"))(titles_pagination)
-    bot.callback_query_handler(func=lambda c: c.data.startswith("files:"))(files_pagination)
-    bot.callback_query_handler(func=lambda c: c.data == "back_titles")(back_to_titles)
 
     # ===== Syllabus Entry =====
     @bot.message_handler(func=lambda m: m.text == "📚 Syllabus")
@@ -163,8 +93,32 @@ def register_syllabus(bot):
             title = titles[title_number]
             print(f"[DEBUG] User selected title number {message.text}: {title}")
 
-            # Show files for this title
-            send_files_page(chat_id, title, title_number, 0, None)
+            # Send files directly for this title (newer to older)
+            items = data.get("grouped", {}).get(title)
+            if not items:
+                bot.send_message(chat_id, "No files found for this title.")
+                return
+
+            # Sort items from newer to older (already sorted in resource_state)
+            # Send each document
+            display_title = data['title_map'].get(title, title)
+            bot.send_message(chat_id, f"📘 Sending files for: {display_title}")
+
+            sent_count = 0
+            for file_id, year, season in items:
+                try:
+                    display_season = (season or 'Unknown').capitalize()
+                    display_year = year or 'Unknown'
+                    caption = f"{display_season} {display_year}"
+                    bot.send_document(chat_id, file_id, caption=caption)
+                    sent_count += 1
+                except Exception as e:
+                    print(f"[ERROR] Failed to send document {file_id}: {e}")
+
+            if sent_count == 0:
+                bot.send_message(chat_id, "Failed to send any files.")
+            else:
+                bot.send_message(chat_id, f"✅ Sent {sent_count} file(s). Send another number to view more resources.")
 
         except Exception as e:
             print(f"[ERROR] handle_title_number failed: {e}")
@@ -363,9 +317,6 @@ def send_titles_page(chat_id, page, message_id=None):
     if (page + 1) * ITEMS_PER_PAGE < len(titles):
         nav_buttons.append(InlineKeyboardButton("➡️ Next", callback_data=f"titles:page:{page+1}"))
 
-    if nav_buttons:
-        markup.row(*nav_buttons)
-
     markup.add(InlineKeyboardButton("🔙 Back", callback_data="back_titles"))
 
     try:
@@ -387,77 +338,3 @@ def send_titles_page(chat_id, page, message_id=None):
     except Exception as e:
         print(f"[ERROR] send_titles_page failed: {e}")
         global_bot.send_message(chat_id, f"Error displaying titles: {e}")
-
-
-def send_files_page(chat_id, title, title_index, page, call):
-
-    data = resource_state.get(chat_id)
-    if not data:
-        print(f"[ERROR] send_files_page: no data for chat_id {chat_id}")
-        return
-
-    items = data.get("grouped", {}).get(title)
-    print(f"[DEBUG] send_files_page: {len(items) if items else 0} items for title '{title}'")
-
-    if not items:
-        global_bot.send_message(chat_id, "No files found.")
-        return
-
-    def season_order(s):
-        return {"fall": 3, "summer": 2, "spring": 1}.get(s or '', 0)
-
-    try:
-        sorted_items = sorted(items, key=lambda x: (x[1] or 0, season_order(x[2])), reverse=True)
-    except Exception as e:
-        print(f"[ERROR] Sorting files failed: {e}")
-        global_bot.send_message(chat_id, f"Error sorting files: {e}")
-        return
-
-    data["current_title_index"] = title_index
-    data["current_files"] = sorted_items
-    data["viewing_titles"] = False  # User is now viewing files
-
-    page_items = paginate(sorted_items, page)
-
-    markup = InlineKeyboardMarkup()
-
-    for idx, (file_id, year, season) in enumerate(page_items):
-        global_index = page * ITEMS_PER_PAGE + idx
-        display_season = (season or 'Unknown').capitalize()
-        display_year = year or 'Unknown'
-        markup.add(
-            InlineKeyboardButton(
-                f"{display_season} {display_year}",
-                callback_data=f"file:{title_index}:{global_index}"
-            )
-        )
-
-    nav = pagination_keyboard(f"files:{title_index}", page, len(sorted_items))
-    if nav.keyboard:
-        for row in nav.keyboard:
-            markup.row(*row)
-
-    markup.add(InlineKeyboardButton("🔙 Back", callback_data="back_titles"))
-
-    display_title = data['title_map'].get(title, title)
-    full_text = f"📘 {display_title}"
-
-    try:
-        if call:
-            global_bot.edit_message_text(
-                full_text,
-                chat_id=call.message.chat.id,
-                message_id=call.message.message_id,
-                reply_markup=markup
-            )
-            print("[DEBUG] send_files_page: edited message")
-        else:
-            global_bot.send_message(
-                chat_id,
-                full_text,
-                reply_markup=markup
-            )
-            print("[DEBUG] send_files_page: sent new message")
-    except Exception as e:
-        print(f"[ERROR] send_files_page failed: {e}")
-        global_bot.send_message(chat_id, f"Error displaying files: {e}")
