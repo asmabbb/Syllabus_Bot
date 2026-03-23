@@ -33,37 +33,6 @@ def normalize(text):
 # CALLBACK HANDLERS (GLOBAL)
 # =========================
 
-def open_title(call):
-    call.answer()
-
-    print(f"[CALLBACK] {call.data}")
-
-    try:
-        _, title_index = call.data.split(":", 1)
-        title_index = int(title_index)
-    except Exception as e:
-        print(f"[ERROR] open_title failed: {call.data} | {e}")
-        return
-
-    chat_id = call.message.chat.id
-    data = resource_state.get(chat_id)
-    if not data:
-        global_bot.answer_callback_query(call.id, "No resources loaded. Please choose a category first.")
-        return
-
-    titles = data.get("titles", [])
-    if title_index < 0 or title_index >= len(titles):
-        print(f"[ERROR] open_title invalid title_index: {title_index}")
-        return
-
-    title = titles[title_index]
-    data["current_title_index"] = title_index
-
-    print(f"[DEBUG] Opening title: {title} (index {title_index})")
-
-    send_files_page(chat_id, title, title_index, 0, call)
-
-
 def send_file(call):
     call.answer()
 
@@ -139,6 +108,11 @@ def files_pagination(call):
 def back_to_titles(call):
     call.answer()
 
+    chat_id = call.message.chat.id
+    data = resource_state.get(chat_id)
+    if data:
+        data["viewing_titles"] = True  # User is back to viewing titles
+
     send_titles_page(call.message.chat.id, 0, call.message.message_id)
 
 
@@ -149,7 +123,6 @@ def back_to_titles(call):
 def register_syllabus(bot):
 
     # ===== Register Callbacks FIRST =====
-    bot.callback_query_handler(func=lambda c: c.data.startswith("title:"))(open_title)
     bot.callback_query_handler(func=lambda c: c.data.startswith("file:"))(send_file)
     bot.callback_query_handler(func=lambda c: c.data.startswith("titles:page:"))(titles_pagination)
     bot.callback_query_handler(func=lambda c: c.data.startswith("files:"))(files_pagination)
@@ -170,17 +143,32 @@ def register_syllabus(bot):
 
         bot.send_message(message.chat.id, "Choose Major:", reply_markup=markup)
 
-    # ===== Debug =====
-    @bot.message_handler(func=lambda m: m.text == "/debug_resources")
-    def debug_resources(message):
-        if message.from_user.id not in ADMINS:
+    # ===== Handle title number selection =====
+    @bot.message_handler(func=lambda m: m.text and m.text.isdigit() and resource_state.get(m.chat.id, {}).get("viewing_titles"))
+    def handle_title_number(message):
+        chat_id = message.chat.id
+        data = resource_state.get(chat_id)
+
+        if not data or not data.get("viewing_titles"):
             return
 
         try:
-            all_resources = get_all_resources()
-            bot.send_message(message.chat.id, f"{all_resources[:5]}")
+            title_number = int(message.text) - 1  # Convert to 0-based index
+            titles = data.get("titles", [])
+
+            if title_number < 0 or title_number >= len(titles):
+                bot.send_message(chat_id, f"Please send a number between 1 and {len(titles)}.")
+                return
+
+            title = titles[title_number]
+            print(f"[DEBUG] User selected title number {message.text}: {title}")
+
+            # Show files for this title
+            send_files_page(chat_id, title, title_number, 0, None)
+
         except Exception as e:
-            bot.send_message(message.chat.id, f"DB Error: {e}")
+            print(f"[ERROR] handle_title_number failed: {e}")
+            bot.send_message(chat_id, "Invalid input. Please send a valid number.")
 
     # ===== Navigation =====
     @bot.message_handler(func=lambda m: True, content_types=['text'])
@@ -318,7 +306,8 @@ def register_syllabus(bot):
                 resource_state[chat_id] = {
                     "grouped": grouped,
                     "titles": sorted_titles,
-                    "title_map": title_map
+                    "title_map": title_map,
+                    "viewing_titles": True
                 }
 
                 print(f"[DEBUG] Grouped into {len(sorted_titles)} titles")
@@ -350,28 +339,39 @@ def send_titles_page(chat_id, page, message_id=None):
 
     page_items = paginate(titles, page)
 
+    # Create numbered text list
+    text_lines = []
+    for index, title in enumerate(page_items):
+        global_index = page * ITEMS_PER_PAGE + index + 1  # 1-based numbering
+        display = data["title_map"].get(title, title)
+        text_lines.append(f"{global_index}. {display}")
+
+    page_text = "\n".join(text_lines)
+
+    total_pages = (len(titles) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
+    current_page = page + 1
+
+    full_text = f"📚 Page {current_page}/{total_pages}:\n\n{page_text}\n\nSend the number of the title you want to view its resources."
+
+    # Create inline keyboard for pagination only
     markup = InlineKeyboardMarkup()
 
-    for index, title in enumerate(page_items):
-        global_index = page * ITEMS_PER_PAGE + index
-        display = data["title_map"].get(title, title)
+    nav_buttons = []
+    if page > 0:
+        nav_buttons.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"titles:page:{page-1}"))
 
-        markup.add(
-            InlineKeyboardButton(
-                f"📘 {display}",
-                callback_data=f"title:{global_index}"
-            )
-        )
+    if (page + 1) * ITEMS_PER_PAGE < len(titles):
+        nav_buttons.append(InlineKeyboardButton("➡️ Next", callback_data=f"titles:page:{page+1}"))
 
-    nav = pagination_keyboard("titles", page, len(titles))
-    if nav.keyboard:
-        for row in nav.keyboard:
-            markup.row(*row)
+    if nav_buttons:
+        markup.row(*nav_buttons)
+
+    markup.add(InlineKeyboardButton("🔙 Back", callback_data="back_titles"))
 
     try:
         if message_id:
             global_bot.edit_message_text(
-                "📚 Choose Resource Title:",
+                full_text,
                 chat_id,
                 message_id,
                 reply_markup=markup
@@ -380,7 +380,7 @@ def send_titles_page(chat_id, page, message_id=None):
         else:
             global_bot.send_message(
                 chat_id,
-                "📚 Choose Resource Title:",
+                full_text,
                 reply_markup=markup
             )
             print("[DEBUG] send_titles_page: sent new message")
@@ -393,19 +393,29 @@ def send_files_page(chat_id, title, title_index, page, call):
 
     data = resource_state.get(chat_id)
     if not data:
+        print(f"[ERROR] send_files_page: no data for chat_id {chat_id}")
         return
 
     items = data.get("grouped", {}).get(title)
+    print(f"[DEBUG] send_files_page: {len(items) if items else 0} items for title '{title}'")
+
     if not items:
         global_bot.send_message(chat_id, "No files found.")
         return
 
     def season_order(s):
-        return {"fall": 3, "summer": 2, "spring": 1}.get(s, 0)
+        return {"fall": 3, "summer": 2, "spring": 1}.get(s or '', 0)
 
-    sorted_items = sorted(items, key=lambda x: (x[1], season_order(x[2])), reverse=True)
+    try:
+        sorted_items = sorted(items, key=lambda x: (x[1] or 0, season_order(x[2])), reverse=True)
+    except Exception as e:
+        print(f"[ERROR] Sorting files failed: {e}")
+        global_bot.send_message(chat_id, f"Error sorting files: {e}")
+        return
+
     data["current_title_index"] = title_index
     data["current_files"] = sorted_items
+    data["viewing_titles"] = False  # User is now viewing files
 
     page_items = paginate(sorted_items, page)
 
@@ -413,9 +423,11 @@ def send_files_page(chat_id, title, title_index, page, call):
 
     for idx, (file_id, year, season) in enumerate(page_items):
         global_index = page * ITEMS_PER_PAGE + idx
+        display_season = (season or 'Unknown').capitalize()
+        display_year = year or 'Unknown'
         markup.add(
             InlineKeyboardButton(
-                f"{season.capitalize()} {year}",
+                f"{display_season} {display_year}",
                 callback_data=f"file:{title_index}:{global_index}"
             )
         )
@@ -425,11 +437,27 @@ def send_files_page(chat_id, title, title_index, page, call):
         for row in nav.keyboard:
             markup.row(*row)
 
-    markup.add(InlineKeyboardButton("⬅ Back", callback_data="back_titles"))
+    markup.add(InlineKeyboardButton("🔙 Back", callback_data="back_titles"))
 
-    global_bot.edit_message_text(
-        f"📘 {data['title_map'].get(title, title)}",
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        reply_markup=markup
-    )
+    display_title = data['title_map'].get(title, title)
+    full_text = f"📘 {display_title}"
+
+    try:
+        if call:
+            global_bot.edit_message_text(
+                full_text,
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                reply_markup=markup
+            )
+            print("[DEBUG] send_files_page: edited message")
+        else:
+            global_bot.send_message(
+                chat_id,
+                full_text,
+                reply_markup=markup
+            )
+            print("[DEBUG] send_files_page: sent new message")
+    except Exception as e:
+        print(f"[ERROR] send_files_page failed: {e}")
+        global_bot.send_message(chat_id, f"Error displaying files: {e}")
