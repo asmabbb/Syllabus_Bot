@@ -45,8 +45,38 @@ def titles_pagination(call):
         print(f"[ERROR] titles_pagination failed: {call.data} | {e}")
         return
 
-    send_titles_page(call.message.chat.id, page, call.message.message_id)
+    # Keep user in title view state while paging titles
+    chat_id = call.message.chat.id
+    if chat_id in resource_state:
+        resource_state[chat_id]["viewing_titles"] = True
 
+    send_titles_page(chat_id, page, call.message.message_id)
+
+
+def back_to_category(call):
+    call.answer()
+
+    chat_id = call.message.chat.id
+
+    # Keep title view state false because we are escaping to category select
+    if chat_id in resource_state:
+        resource_state[chat_id]["viewing_titles"] = False
+
+    # Optionally clear page state
+    resource_state.pop(chat_id, None)
+
+    # Return to category options (same subject)
+    current_subject = user_state.get(chat_id, {}).get("subject_id")
+    if not current_subject:
+        call.bot.send_message(chat_id, "Please pick a subject again.")
+        return
+
+    markup = ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add("Exam", "Books & Lectures", "Other Resources")
+    markup.add("⬅ Back")
+
+    push(chat_id, markup)
+    call.bot.send_message(chat_id, "Choose Type:", reply_markup=markup)
 
 
 # =========================
@@ -57,6 +87,7 @@ def register_syllabus(bot):
 
     # ===== Register Callbacks FIRST =====
     bot.callback_query_handler(func=lambda c: c.data.startswith("titles:page:"))(titles_pagination)
+    bot.callback_query_handler(func=lambda c: c.data == "back_titles")(back_to_category)
 
     # ===== Syllabus Entry =====
     @bot.message_handler(func=lambda m: m.text == "📚 Syllabus")
