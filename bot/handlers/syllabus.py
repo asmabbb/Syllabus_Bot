@@ -131,27 +131,32 @@ def register_syllabus(bot):
         else:
             bot.send_message(chat_id, "Already on the last page.")
 
+    def _syllabus_go_back(chat_id, user_id):
+        prev_markup = back(chat_id)
+
+        if prev_markup:
+            bot.send_message(chat_id, "Going back...", reply_markup=prev_markup)
+            return
+
+        # No previous screens, go to main menu (same as admin behavior)
+        from bot.keyboards.main_menu_keyboard import main_menu
+        is_admin = user_id in ADMINS
+
+        user_state.pop(chat_id, None)
+        resource_state.pop(chat_id, None)
+
+        bot.send_message(
+            chat_id,
+            "Main Menu",
+            reply_markup=main_menu(is_admin)
+        )
+
     @bot.message_handler(func=lambda m: m.text == "/back" and resource_state.get(m.chat.id, {}).get("viewing_titles"))
     def handle_back(message):
         chat_id = message.chat.id
-        # Clear viewing state
         if chat_id in resource_state:
             resource_state[chat_id]["viewing_titles"] = False
-        # Go back one step
-        prev_markup = back(chat_id)
-        if prev_markup:
-            bot.send_message(chat_id, "Back", reply_markup=prev_markup)
-        else:
-            # If no history, return to category selection
-            current_subject = user_state.get(chat_id, {}).get("subject_id")
-            if current_subject:
-                markup = ReplyKeyboardMarkup(resize_keyboard=True)
-                markup.add("Exam", "Books & Lectures", "Other Resources")
-                markup.add("⬅ Back")
-                push(chat_id, markup)
-                bot.send_message(chat_id, "Choose Type:", reply_markup=markup)
-            else:
-                bot.send_message(chat_id, "Please start over from syllabus.")
+        _syllabus_go_back(chat_id, message.from_user.id)
 
     # ===== Navigation =====
     @bot.message_handler(func=lambda m: True, content_types=['text'])
@@ -170,9 +175,7 @@ def register_syllabus(bot):
             return
 
         if text == "⬅ Back":
-            prev = back(chat_id)
-            if prev:
-                bot.send_message(chat_id, "Back", reply_markup=prev)
+            _syllabus_go_back(chat_id, message.from_user.id)
             return
 
         # MAJOR
@@ -338,10 +341,16 @@ def send_titles_page(chat_id, page, message_id=None):
     total_pages = (len(titles) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
     current_page = page + 1
 
-    full_text = f"📚 Page {current_page}/{total_pages}:\n\n{page_text}\n\nSend the number of the title you want to view its resources.\n\nCommands: /prev /next /back"
+    full_text = f"📚 Page {current_page}/{total_pages}:\n\n{page_text}\n\nSend the number of the title you want to view its resources.\n\nCommands:⬅️ /prev    -    ➡️ /next \n🔙 /back to menu"
 
     # Update current page in state
     resource_state[chat_id]["current_page"] = page
+
+    # Determine target message id for editing (if possible)
+    if message_id:
+        resource_state[chat_id]["last_message_id"] = message_id
+    else:
+        message_id = resource_state[chat_id].get("last_message_id")
 
     try:
         if message_id:
@@ -350,12 +359,14 @@ def send_titles_page(chat_id, page, message_id=None):
                 chat_id,
                 message_id
             )
+            resource_state[chat_id]["last_message_id"] = message_id
             print("[DEBUG] send_titles_page: edited message")
         else:
-            global_bot.send_message(
+            sent = global_bot.send_message(
                 chat_id,
                 full_text
             )
+            resource_state[chat_id]["last_message_id"] = sent.message_id
             print("[DEBUG] send_titles_page: sent new message")
     except Exception as e:
         print(f"[ERROR] send_titles_page failed: {e}")
