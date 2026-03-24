@@ -165,13 +165,15 @@ def register_syllabus(bot):
     def handle_back(message):
         chat_id = message.chat.id
 
-        # If user was viewing titles → go to previous screen (categories)
-        if resource_state.get(chat_id, {}).get("viewing_titles"):
-            resource_state[chat_id]["viewing_titles"] = False
-            _syllabus_go_back(chat_id, message.from_user.id)
+        # Always go to categories menu if in syllabus flow with subject selected
+        state = user_state.get(chat_id, {})
+        if 'subject_id' in state and 'categories_markup' in state:
+            resource_state[chat_id] = resource_state.get(chat_id, {})
+            resource_state[chat_id]['viewing_titles'] = False
+            bot.send_message(chat_id, "Choose Type:", reply_markup=state['categories_markup'])
             return
 
-        # Otherwise normal back behavior
+        # Otherwise, normal back behavior
         _syllabus_go_back(chat_id, message.from_user.id)
 
     @bot.message_handler(func=lambda m: m.text == "⬅ Back")
@@ -256,12 +258,8 @@ def register_syllabus(bot):
                     markup.add("Exam", "Books & Lectures", "Other Resources")
                     markup.add("⬅ Back")
 
-                    push(chat_id, markup)
-                    bot.send_message(chat_id, "Choose Type:", reply_markup=markup)
-                    return
+            user_state[chat_id]["categories_markup"] = markup
 
-        # CATEGORY
-        if "subject_id" in user_state.get(chat_id, {}):
             mapping = {
                 "Exam": "exam",
                 "Books & Lectures": "books & lectures",
