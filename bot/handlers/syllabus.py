@@ -1,4 +1,3 @@
-import urllib.parse
 import re
 
 from telebot.types import ReplyKeyboardMarkup
@@ -132,18 +131,29 @@ def register_syllabus(bot):
             bot.send_message(chat_id, "Already on the last page.")
 
     def _syllabus_go_back(chat_id, user_id):
+        # Step 1: sync logical state with UI history
+        state = user_state.get(chat_id, {})
+
+        if "subject_id" in state:
+            state.pop("subject_id")
+        elif "semester" in state:
+            state.pop("semester")
+        elif "major_id" in state:
+            state.pop("major_id")
+        else:
+            user_state.pop(chat_id, None)
+            resource_state.pop(chat_id, None)
+
+        # Step 2: pop UI history and show previous keyboard if available
         prev_markup = back(chat_id)
 
         if prev_markup:
             bot.send_message(chat_id, "Going back...", reply_markup=prev_markup)
             return
 
-        # No previous screens, go to main menu (same as admin behavior)
+        # Step 3: fallback to main menu
         from bot.keyboards.main_menu_keyboard import main_menu
         is_admin = user_id in ADMINS
-
-        user_state.pop(chat_id, None)
-        resource_state.pop(chat_id, None)
 
         bot.send_message(
             chat_id,
