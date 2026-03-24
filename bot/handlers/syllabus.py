@@ -174,6 +174,19 @@ def register_syllabus(bot):
         # Otherwise normal back behavior
         _syllabus_go_back(chat_id, message.from_user.id)
 
+    @bot.message_handler(func=lambda m: m.text == "⬅ Back")
+    def syllabus_back_button(message):
+        chat_id = message.chat.id
+
+        # If viewing titles, handle specially
+        if resource_state.get(chat_id, {}).get("viewing_titles"):
+            resource_state[chat_id]["viewing_titles"] = False
+            _syllabus_go_back(chat_id, message.from_user.id)
+            return
+
+        # Otherwise, normal back
+        _syllabus_go_back(chat_id, message.from_user.id)
+
     # ===== Navigation =====
     @bot.message_handler(func=lambda m: True, content_types=['text'])
     def navigation(message):
@@ -183,18 +196,11 @@ def register_syllabus(bot):
 
         print(f"[NAVIGATION] {text}")
 
-        # While viewing titles, only respond to ⬅ Back (handled here) and ignore all other navigation
+        # While viewing titles, only respond to number inputs, /prev, /next, and specific commands
         if resource_state.get(chat_id, {}).get("viewing_titles"):
-            if text == "⬅ Back":
-                resource_state[chat_id]["viewing_titles"] = False
-                _syllabus_go_back(chat_id, message.from_user.id)
             return
 
         if text == "📚 Syllabus":
-            return
-
-        if text == "⬅ Back":
-            _syllabus_go_back(chat_id, message.from_user.id)
             return
 
         # MAJOR
