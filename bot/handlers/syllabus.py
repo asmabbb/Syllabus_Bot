@@ -258,18 +258,12 @@ def register_syllabus(bot):
                     markup.add("Exam", "Books & Lectures", "Other Resources")
                     markup.add("⬅ Back")
 
-            user_state[chat_id]["categories_markup"] = markup
+                    user_state[chat_id]["categories_markup"] = markup
 
-            mapping = {
-                "Exam": "exam",
-                "Books & Lectures": "books & lectures",
-                "Other Resources": "other resources"
-            }
+                    push(chat_id, markup)
+                    bot.send_message(chat_id, "Choose Type:", reply_markup=markup)
 
-            category = mapping.get(text)
-            if not category:
-                print(f"[DEBUG] Unknown category text: '{text}'")
-                return
+                    return  # 🔥 CRITICAL FIX
 
             print(f"[DEBUG] Fetching resources for subject_id={user_state[chat_id]['subject_id']}, category='{category}'")
 
