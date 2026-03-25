@@ -194,22 +194,28 @@ def register_syllabus(bot):
     def navigation(message):
 
         chat_id = message.chat.id
-        text = message.text
+        text = message.text.strip()
 
         print(f"[NAVIGATION] {text}")
 
-        # While viewing titles, only respond to number inputs, /prev, /next, and specific commands
+        # Block navigation when viewing titles
         if resource_state.get(chat_id, {}).get("viewing_titles"):
             return
 
         if text == "📚 Syllabus":
             return
 
-        # MAJOR
-        for m in get_majors():
-            if text.strip() == m[1].strip():
+        state = user_state.setdefault(chat_id, {})
+        stack = state.setdefault("stack", [])
 
-                user_state[chat_id] = {"major_id": m[0]}
+        # =========================
+        # MAJOR
+        # =========================
+        for m in get_majors():
+            if text == m[1]:
+
+                stack.clear()
+                stack.append({"level": "major", "major_id": m[0]})
 
                 semesters = get_semesters_by_major(m[0])
 
@@ -218,28 +224,125 @@ def register_syllabus(bot):
                     markup.add(f"Semester {s}")
                 markup.add("⬅ Back")
 
-                push(chat_id, markup)
                 bot.send_message(chat_id, "Choose Semester:", reply_markup=markup)
                 return
 
+        # =========================
         # SEMESTER
-        if chat_id in user_state and "major_id" in user_state[chat_id]:
-            if text.startswith("Semester"):
+        # =========================
+        if stack and stack[-1]["level"] == "major" and text.startswith("Semester"):
 
-                sem_number = int(text.split()[1])
-                user_state[chat_id]["semester"] = sem_number
+            sem_number = int(text.split()[1])
+            major_id = stack[-1]["major_id"]
 
-                semester_id = get_semester_id(user_state[chat_id]["major_id"], sem_number)
-                subjects = get_subjects(semester_id)
+            stack.append({
+                "level": "semester",
+                "semester": sem_number
+            })
 
-                markup = ReplyKeyboardMarkup(resize_keyboard=True)
-                for s in subjects:
-                    markup.add(s[1])
-                markup.add("⬅ Back")
+            semester_id = get_semester_id(major_id, sem_number)
+            subjects = get_subjects(semester_id)
 
-                push(chat_id, markup)
-                bot.send_message(chat_id, "Choose Subject:", reply_markup=markup)
+            markup = ReplyKeyboardMarkup(resize_keyboard=True)
+            for s in subjects:
+                markup.add(s[1])
+            markup.add("⬅ Back")
+
+            bot.send_message(chat_id, "Choose Subject:", reply_markup=markup)
+            return
+
+        # =========================
+        # SUBJECT
+        # =========================
+        if stack and stack[-1]["level"] == "semester":
+
+            major_id = stack[0]["major_id"]
+            semester = stack[-1]["semester"]
+
+            semester_id = get_semester_id(major_id, semester)
+            subjects = get_subjects(semester_id)
+
+            for s in subjects:
+                if text == s[1]:
+
+                    stack.append({
+                        "level": "subject",
+                        "subject_id": s[0]
+                    })
+
+                    markup = ReplyKeyboardMarkup(resize_keyboard=True)
+                    markup.add("Exam", "Books & Lectures", "Other Resources")
+                    markup.add("⬅ Back")
+
+                    bot.send_message(chat_id, "Choose Type:", reply_markup=markup)
+                    return
+
+        # =========================
+        # CATEGORY
+        # =========================
+        if stack and stack[-1]["level"] == "subject":
+
+            mapping = {
+                "Exam": "exam",
+                "Books & Lectures": "books & lectures",
+                "Other Resources": "other resources"
+            }
+
+            category = mapping.get(text)
+            if not category:
                 return
+
+            subject_id = stack[-1]["subject_id"]
+
+            stack.append({
+                "level": "category",
+                "category": category
+            })
+
+            resources = get_resources(subject_id, category)
+
+            if not resources:
+                bot.send_message(chat_id, "No resources found.")
+                return
+
+            try:
+                grouped = {}
+                title_map = {}
+
+                for title, file_id, year, season in resources:
+                    if not title or not file_id:
+                        continue
+
+                    clean = normalize(title)
+                    year = year or 0
+                    season = season or ''
+
+                    if clean not in grouped:
+                        grouped[clean] = []
+                        title_map[clean] = title
+
+                    grouped[clean].append((file_id, year, season))
+
+                sorted_titles = sorted(
+                    grouped.keys(),
+                    key=lambda t: max((y, s) for _, y, s in grouped[t]),
+                    reverse=True
+                )
+
+                resource_state[chat_id] = {
+                    "grouped": grouped,
+                    "titles": sorted_titles,
+                    "title_map": title_map,
+                    "viewing_titles": True
+                }
+
+                send_titles_page(chat_id, 0)
+
+            except Exception as e:
+                print(f"[ERROR] Resource processing failed: {e}")
+                bot.send_message(chat_id, "Error processing resources.")
+
+            return
 
         # SUBJECT
         if "semester" in user_state.get(chat_id, {}):
