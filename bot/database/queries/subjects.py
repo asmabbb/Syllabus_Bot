@@ -55,3 +55,32 @@ def delete_subject(subject_id):
     conn.commit()
     cur.close()
     conn.close()
+
+
+def update_subject(subject_id, name):
+    """Update the name of a subject"""
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE subjects SET name=%s WHERE id=%s",
+        (name, subject_id)
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+def get_subjects_by_major(major_id):
+    """Return all subjects of a major (id, name)"""
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT subjects.id, subjects.name
+        FROM subjects
+        JOIN semesters ON subjects.semester_id = semesters.id
+        WHERE semesters.major_id=%s
+    """, (major_id,))
+    subjects = cur.fetchall()
+    cur.close()
+    conn.close()
+    return subjects

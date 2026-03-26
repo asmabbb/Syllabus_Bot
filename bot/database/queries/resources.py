@@ -96,3 +96,37 @@ def delete_resource(resource_id):
     conn.commit()
     cur.close()
     conn.close()
+
+
+def update_resource(resource_id, title=None, category=None, year=None, season=None):
+    """Update resource details"""
+    conn = get_connection()
+    cur = conn.cursor()
+    
+    fields = []
+    values = []
+    if title is not None:
+        fields.append("title=%s")
+        values.append(title)
+    if category is not None:
+        fields.append("category=%s")
+        values.append(category)
+    if year is not None:
+        fields.append("academic_year=%s")
+        values.append(year)
+    if season is not None:
+        fields.append("season=%s")
+        values.append(season)
+    
+    if not fields:
+        cur.close()
+        conn.close()
+        return
+    
+    query = f"UPDATE resources SET {', '.join(fields)} WHERE id=%s"
+    values.append(resource_id)
+    
+    cur.execute(query, tuple(values))
+    conn.commit()
+    cur.close()
+    conn.close()
