@@ -135,43 +135,38 @@ def register_syllabus(bot):
     def syllabus_back_button(message):
         chat_id = message.chat.id
 
-        # 🚀 If viewing titles → go back to categories
-        if resource_state.get(chat_id, {}).get("viewing_titles"):
+        state = user_state.get(chat_id, {})
+        stack = state.get("stack", [])
 
+        # 🚀 If viewing titles → go back to categories WITHOUT touching stack
+        if resource_state.get(chat_id, {}).get("viewing_titles"):
             resource_state[chat_id]["viewing_titles"] = False
 
-            state = user_state.get(chat_id, {})
-            stack = state.get("stack", [])
+            markup = ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add("Exam", "Books & Lectures", "Other Resources")
+            markup.add("⬅ Back")
 
-            for item in reversed(stack):
-                if item["level"] == "subject":
+            bot.send_message(chat_id, "Choose Type:", reply_markup=markup)
+            return
 
-                    markup = ReplyKeyboardMarkup(resize_keyboard=True)
-                    markup.add("Exam", "Books & Lectures", "Other Resources")
-                    markup.add("⬅ Back")
-
-                    bot.send_message(chat_id, "Choose Type:", reply_markup=markup)
-                    return
-
-        # 🚀 Otherwise normal back
+        # 🚀 Normal back
         _syllabus_go_back(chat_id, message.from_user.id)
-
 
     def _syllabus_go_back(chat_id, user_id):
 
         state = user_state.get(chat_id, {})
         stack = state.get("stack", [])
 
-        # ❌ Nothing in stack → main menu
+        # ❌ No stack → main menu
         if not stack:
             from bot.keyboards.main_menu_keyboard import main_menu
             bot.send_message(chat_id, "Main Menu", reply_markup=main_menu(user_id in ADMINS))
             return
 
-        # Remove current level
+        # 🔥 Pop ONE level ONLY
         stack.pop()
 
-        # ❌ Stack empty after pop → main menu
+        # ❌ After pop → empty → main menu
         if not stack:
             from bot.keyboards.main_menu_keyboard import main_menu
             bot.send_message(chat_id, "Main Menu", reply_markup=main_menu(user_id in ADMINS))
@@ -180,7 +175,7 @@ def register_syllabus(bot):
         last = stack[-1]
 
         # =========================
-        # REBUILD UI FROM STATE
+        # REBUILD UI (NO DB OVERCALL)
         # =========================
 
         if last["level"] == "major":
@@ -216,30 +211,24 @@ def register_syllabus(bot):
 
             bot.send_message(chat_id, "Choose Type:", reply_markup=markup)
 
+
+
     @bot.message_handler(commands=['back'])
     def handle_back(message):
         chat_id = message.chat.id
 
-        # 🚀 CASE 1: If viewing titles → go back to categories
+        # 🚀 If viewing titles → go to categories (NO stack pop)
         if resource_state.get(chat_id, {}).get("viewing_titles"):
-
             resource_state[chat_id]["viewing_titles"] = False
 
-            state = user_state.get(chat_id, {})
-            stack = state.get("stack", [])
+            markup = ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add("Exam", "Books & Lectures", "Other Resources")
+            markup.add("⬅ Back")
 
-            # Find subject level in stack
-            for item in reversed(stack):
-                if item["level"] == "subject":
-                    
-                    markup = ReplyKeyboardMarkup(resize_keyboard=True)
-                    markup.add("Exam", "Books & Lectures", "Other Resources")
-                    markup.add("⬅ Back")
+            bot.send_message(chat_id, "Choose Type:", reply_markup=markup)
+            return
 
-                    bot.send_message(chat_id, "Choose Type:", reply_markup=markup)
-                    return
-
-        # 🚀 CASE 2: Normal back
+        # 🚀 Otherwise normal back
         _syllabus_go_back(chat_id, message.from_user.id)
 
     # ===== Navigation =====
