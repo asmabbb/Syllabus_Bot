@@ -8,6 +8,10 @@ from bot.database.queries.resources import get_resources
 from bot.config import ADMINS
 from bot.utils.pagination import paginate, ITEMS_PER_PAGE
 
+# =========================
+# STATE
+# =========================
+
 user_state = {}
 resource_state = {}
 
@@ -16,7 +20,39 @@ resource_state = {}
 # =========================
 
 def normalize(text):
-    return re.sub(r'\s+', ' ', text.strip().lower())
+    return re.sub(r"\s+", " ", text.strip().lower())
+
+
+def main_menu(bot, chat_id, user_id):
+    from bot.keyboards.main_menu_keyboard import main_menu
+    bot.send_message(chat_id, "Main Menu", reply_markup=main_menu(user_id in ADMINS))
+
+
+def majors_keyboard():
+    markup = ReplyKeyboardMarkup(resize_keyboard=True)
+    for m in get_majors():
+        markup.add(m[1])
+    markup.add("⬅ Back")
+    return markup
+
+
+def semesters_keyboard(major_id):
+    markup = ReplyKeyboardMarkup(resize_keyboard=True)
+    for s in get_semesters_by_major(major_id):
+        markup.add(f"Semester {s}")
+    markup.add("⬅ Back")
+    return markup
+
+
+def subjects_keyboard(major_id, semester):
+    semester_id = get_semester_id(major_id, semester)
+    subjects = get_subjects(semester_id)
+
+    markup = ReplyKeyboardMarkup(resize_keyboard=True)
+    for s in subjects:
+        markup.add(s[1])
+    markup.add("⬅ Back")
+    return markup
 
 
 def categories_keyboard():
@@ -25,183 +61,92 @@ def categories_keyboard():
     markup.add("⬅ Back")
     return markup
 
+# =========================
+# CORE LOGIC
+# =========================
 
-def main_menu(chat_id, user_id):
-    from bot.keyboards.main_menu_keyboard import main_menu
-    bot.send_message(chat_id, "Main Menu", reply_markup=main_menu(user_id in ADMINS))
+def go_back(bot, chat_id, user_id):
+    state = user_state.get(chat_id)
 
+    if not state or not state.get("stack"):
+        main_menu(bot, chat_id, user_id)
+        return
+
+    stack = state["stack"]
+    stack.pop()
+
+    if not stack:
+        main_menu(bot, chat_id, user_id)
+        return
+
+    last = stack[-1]
+
+    if last["level"] == "major":
+        bot.send_message(chat_id, "Choose Semester:", reply_markup=semesters_keyboard(last["major_id"]))
+
+    elif last["level"] == "semester":
+        bot.send_message(
+            chat_id,
+            "Choose Subject:",
+            reply_markup=subjects_keyboard(stack[0]["major_id"], last["semester"])
+        )
+
+    elif last["level"] == "subject":
+        bot.send_message(chat_id, "Choose Type:", reply_markup=categories_keyboard())
 
 # =========================
-# MAIN REGISTER FUNCTION
+# REGISTER
 # =========================
 
 def register_syllabus(bot):
 
-    # =========================
-    # ENTRY
-    # =========================
+    # ===== ENTRY =====
     @bot.message_handler(func=lambda m: m.text == "📚 Syllabus")
-    def syllabus(message):
+    def start(message):
         chat_id = message.chat.id
 
         user_state[chat_id] = {"stack": []}
         resource_state.pop(chat_id, None)
 
-        majors = get_majors()
-
-        markup = ReplyKeyboardMarkup(resize_keyboard=True)
-        for m in majors:
-            markup.add(m[1])
-        markup.add("⬅ Back")
-
-        bot.send_message(chat_id, "Choose Major:", reply_markup=markup)
+        bot.send_message(chat_id, "Choose Major:", reply_markup=majors_keyboard())
 
 
-    # =========================
-    # BACK BUTTON (⬅)
-    # =========================
+    # ===== BACK BUTTON =====
     @bot.message_handler(func=lambda m: m.text == "⬅ Back")
     def back_button(message):
         chat_id = message.chat.id
 
-        # If viewing titles → go back to categories
         if resource_state.get(chat_id, {}).get("viewing_titles"):
             resource_state[chat_id]["viewing_titles"] = False
             bot.send_message(chat_id, "Choose Type:", reply_markup=categories_keyboard())
             return
 
-        go_back(chat_id, message.from_user.id)
+        go_back(bot, chat_id, message.from_user.id)
 
 
-    # =========================
-    # /BACK COMMAND
-    # =========================
+    # ===== /BACK COMMAND =====
     @bot.message_handler(commands=['back'])
     def back_command(message):
         chat_id = message.chat.id
 
-        # ALWAYS go to categories if possible
         state = user_state.get(chat_id, {})
         stack = state.get("stack", [])
 
-        # If inside subject → show categories
         if stack and any(s["level"] == "subject" for s in stack):
             resource_state.pop(chat_id, None)
             bot.send_message(chat_id, "Choose Type:", reply_markup=categories_keyboard())
             return
 
-        # Otherwise fallback
-        go_back(chat_id, message.from_user.id)
+        go_back(bot, chat_id, message.from_user.id)
 
 
-    # =========================
-    # CORE BACK LOGIC
-    # =========================
-    def go_back(chat_id, user_id):
-
-        state = user_state.get(chat_id)
-        if not state or not state.get("stack"):
-            main_menu(chat_id, user_id)
-            return
-
-        stack = state["stack"]
-
-        # remove ONE level
-        stack.pop()
-
-        if not stack:
-            main_menu(chat_id, user_id)
-            return
-
-        last = stack[-1]
-
-        # ===== REBUILD UI =====
-
-        if last["level"] == "major":
-            semesters = get_semesters_by_major(last["major_id"])
-
-            markup = ReplyKeyboardMarkup(resize_keyboard=True)
-            for s in semesters:
-                markup.add(f"Semester {s}")
-            markup.add("⬅ Back")
-
-            bot.send_message(chat_id, "Choose Semester:", reply_markup=markup)
-
-        elif last["level"] == "semester":
-            semester_id = get_semester_id(stack[0]["major_id"], last["semester"])
-            subjects = get_subjects(semester_id)
-
-            markup = ReplyKeyboardMarkup(resize_keyboard=True)
-            for s in subjects:
-                markup.add(s[1])
-            markup.add("⬅ Back")
-
-            bot.send_message(chat_id, "Choose Subject:", reply_markup=markup)
-
-        elif last["level"] == "subject":
-            bot.send_message(chat_id, "Choose Type:", reply_markup=categories_keyboard())
-
-
-    # =========================
-    # TITLE SELECTION
-    # =========================
-    @bot.message_handler(func=lambda m: m.text and m.text.isdigit() and resource_state.get(m.chat.id, {}).get("viewing_titles"))
-    def handle_title(message):
-        chat_id = message.chat.id
-        data = resource_state.get(chat_id)
-
-        try:
-            idx = int(message.text) - 1
-            titles = data["titles"]
-
-            if idx < 0 or idx >= len(titles):
-                bot.send_message(chat_id, "Invalid number.")
-                return
-
-            title = titles[idx]
-            items = data["grouped"][title]
-
-            bot.send_message(chat_id, f"📘 {data['title_map'][title]}")
-
-            for file_id, year, season in items:
-                bot.send_document(
-                    chat_id,
-                    file_id,
-                    caption=f"{(season or 'Unknown').capitalize()} {year or 'Unknown'}"
-                )
-
-        except:
-            bot.send_message(chat_id, "Invalid input.")
-
-
-    # =========================
-    # PAGINATION
-    # =========================
-    @bot.message_handler(func=lambda m: m.text == "/next" and resource_state.get(m.chat.id, {}).get("viewing_titles"))
-    def next_page(message):
-        data = resource_state[message.chat.id]
-        page = data.get("current_page", 0)
-        send_titles_page(message.chat.id, page + 1)
-
-
-    @bot.message_handler(func=lambda m: m.text == "/prev" and resource_state.get(m.chat.id, {}).get("viewing_titles"))
-    def prev_page(message):
-        data = resource_state[message.chat.id]
-        page = data.get("current_page", 0)
-        if page > 0:
-            send_titles_page(message.chat.id, page - 1)
-
-
-    # =========================
-    # NAVIGATION
-    # =========================
-    @bot.message_handler(func=lambda m: True, content_types=['text'])
+    # ===== NAVIGATION (CONTROLLED) =====
+    @bot.message_handler(func=lambda m: m.text not in ["⬅ Back", "📚 Syllabus"] and not m.text.startswith("/"))
     def navigation(message):
 
         chat_id = message.chat.id
         text = message.text.strip()
 
-        # block navigation during titles
         if resource_state.get(chat_id, {}).get("viewing_titles"):
             return
 
@@ -214,14 +159,7 @@ def register_syllabus(bot):
                 stack.clear()
                 stack.append({"level": "major", "major_id": m[0]})
 
-                semesters = get_semesters_by_major(m[0])
-
-                markup = ReplyKeyboardMarkup(resize_keyboard=True)
-                for s in semesters:
-                    markup.add(f"Semester {s}")
-                markup.add("⬅ Back")
-
-                bot.send_message(chat_id, "Choose Semester:", reply_markup=markup)
+                bot.send_message(chat_id, "Choose Semester:", reply_markup=semesters_keyboard(m[0]))
                 return
 
         # ===== SEMESTER =====
@@ -230,20 +168,15 @@ def register_syllabus(bot):
 
             stack.append({"level": "semester", "semester": sem})
 
-            semester_id = get_semester_id(stack[0]["major_id"], sem)
-            subjects = get_subjects(semester_id)
-
-            markup = ReplyKeyboardMarkup(resize_keyboard=True)
-            for s in subjects:
-                markup.add(s[1])
-            markup.add("⬅ Back")
-
-            bot.send_message(chat_id, "Choose Subject:", reply_markup=markup)
+            bot.send_message(
+                chat_id,
+                "Choose Subject:",
+                reply_markup=subjects_keyboard(stack[0]["major_id"], sem)
+            )
             return
 
         # ===== SUBJECT =====
         if stack and stack[-1]["level"] == "semester":
-
             semester_id = get_semester_id(stack[0]["major_id"], stack[-1]["semester"])
             subjects = get_subjects(semester_id)
 
@@ -296,6 +229,46 @@ def register_syllabus(bot):
             }
 
             send_titles_page(chat_id, 0)
+
+
+    # ===== TITLE SELECTION =====
+    @bot.message_handler(func=lambda m: m.text.isdigit() and resource_state.get(m.chat.id, {}).get("viewing_titles"))
+    def select_title(message):
+        chat_id = message.chat.id
+        data = resource_state.get(chat_id)
+
+        idx = int(message.text) - 1
+        titles = data["titles"]
+
+        if idx < 0 or idx >= len(titles):
+            bot.send_message(chat_id, "Invalid number.")
+            return
+
+        title = titles[idx]
+        items = data["grouped"][title]
+
+        bot.send_message(chat_id, f"📘 {data['title_map'][title]}")
+
+        for file_id, year, season in items:
+            bot.send_document(
+                chat_id,
+                file_id,
+                caption=f"{(season or 'Unknown').capitalize()} {year or 'Unknown'}"
+            )
+
+
+    # ===== PAGINATION =====
+    @bot.message_handler(func=lambda m: m.text == "/next" and resource_state.get(m.chat.id, {}).get("viewing_titles"))
+    def next_page(message):
+        data = resource_state[message.chat.id]
+        send_titles_page(message.chat.id, data["current_page"] + 1)
+
+
+    @bot.message_handler(func=lambda m: m.text == "/prev" and resource_state.get(m.chat.id, {}).get("viewing_titles"))
+    def prev_page(message):
+        data = resource_state[message.chat.id]
+        if data["current_page"] > 0:
+            send_titles_page(message.chat.id, data["current_page"] - 1)
 
 
 # =========================
