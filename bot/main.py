@@ -1,3 +1,4 @@
+# bot/main.py
 from bot.bot_instance import bot
 from bot.handlers import start
 from bot.handlers.admin_panel import register_admin_panel
@@ -5,10 +6,8 @@ from bot.handlers.syllabus import register_syllabus
 from bot.handlers.share import register_share_handlers
 from bot.database.db import init_db
 
-from flask import Flask
-import threading
+from flask import Flask, request
 import os
-import time
 
 # -------------------------
 # REGISTER HANDLERS
@@ -22,17 +21,29 @@ register_syllabus(bot)
 # -------------------------
 app = Flask(__name__)
 
-@app.route('/')
+@app.route("/")
 def home():
     return "CETSU Student Support Bot is alive!"
 
-def run_web():
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
+# Telegram webhook endpoint
+@app.route(f"/{os.environ['BOT_TOKEN']}", methods=["POST"])
+def telegram_webhook():
+    json_update = request.get_json(force=True)
+    update = bot.types.Update.de_json(json_update)
+    bot.process_new_updates([update])
+    return "!", 200
 
-# Start web server in seperate thread
-threading.Thread(target=run_web).start()
+# -------------------------
+# INIT DB & SET WEBHOOK
+# -------------------------
+if __name__ == "__main__":
+    init_db()
 
-# ---- Start Everything ---- 
-init_db()
+    # Remove any previous webhook
+    bot.remove_webhook()
 
-bot.infinity_polling(timeout=10, long_polling_timeout=5)
+    # Set new webhook (your Render URL)
+    RENDER_URL = os.environ.get("RENDER_URL")  # e.g., https://yourapp.onrender.com
+    bot.set_webhook(url=f"{RENDER_URL}/{os.environ['BOT_TOKEN']}")
+
+    print("✅ Webhook set. Bot is ready to receive updates!")
