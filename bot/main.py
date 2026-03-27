@@ -1,8 +1,10 @@
 from bot.bot_instance import bot
+
 from bot.handlers import start
 from bot.handlers.admin_panel import register_admin_panel
 from bot.handlers.syllabus import register_syllabus
 from bot.handlers.share import register_share_handlers
+
 from bot.database.db import init_db
 
 from flask import Flask
@@ -23,7 +25,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "CETSU Student Support Bot is alive!"
+    return "CETSU Syllabus Bot is alive!"
 
 def run_web():
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
