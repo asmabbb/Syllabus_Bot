@@ -34,15 +34,25 @@ def run_web():
 # -------------------------
 # SAFE POLLING LOOP
 # -------------------------
+import threading
+
+def polling_worker():
+    try:
+        bot.infinity_polling(timeout=10, long_polling_timeout=5)
+    except Exception as e:
+        print("Polling crashed:", e)
+
 def start_bot():
     while True:
-        try:
-            print("Bot polling started...")
-            bot.infinity_polling(timeout=10, long_polling_timeout=5)
-        except Exception as e:
-            print("Polling crashed:", e)
-            time.sleep(5)
+        t = threading.Thread(target=polling_worker)
+        t.start()
 
+        # ⏱️ Force restart every 15 minutes
+        time.sleep(900)
+
+        print("Forcing polling restart...")
+        bot.stop_polling()
+        t.join()
 # -------------------------
 # START EVERYTHING
 # -------------------------
@@ -53,7 +63,7 @@ if __name__ == "__main__":
     print("Webhook deleted")
 
     # Start Flask
-    threading.Thread(target=run_web).start()
+    threading.Thread(target=run_web, daemon=True).start()
 
     # Start Bot (SAFE)
     start_bot()
