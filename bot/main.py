@@ -1,4 +1,3 @@
-# bot/main.py
 from bot.bot_instance import bot
 from bot.handlers import start
 from bot.handlers.admin_panel import register_admin_panel
@@ -25,7 +24,6 @@ app = Flask(__name__)
 def home():
     return "CETSU Student Support Bot is alive!"
 
-# Telegram webhook endpoint
 @app.route(f"/{os.environ['BOT_TOKEN']}", methods=["POST"])
 def telegram_webhook():
     json_update = request.get_json(force=True)
@@ -34,16 +32,9 @@ def telegram_webhook():
     return "!", 200
 
 # -------------------------
-# INIT DB & SET WEBHOOK
+# INIT DB
 # -------------------------
 if __name__ == "__main__":
     init_db()
-
-    # Remove any previous webhook
-    bot.remove_webhook()
-
-    # Set new webhook (your Render URL)
-    RENDER_URL = os.environ.get("RENDER_URL")  # e.g., https://yourapp.onrender.com
-    bot.set_webhook(url=f"{RENDER_URL}/{os.environ['BOT_TOKEN']}")
-
-    print("✅ Webhook set. Bot is ready to receive updates!")
+    print("Bot is ready! Waiting for Telegram updates...")
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
