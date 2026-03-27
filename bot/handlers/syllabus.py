@@ -6,6 +6,7 @@ from bot.database.queries.semesters import get_semester_id, get_semesters_by_maj
 from bot.database.queries.subjects import get_subjects
 from bot.database.queries.resources import get_resources
 from bot.utils.pagination import paginate, ITEMS_PER_PAGE
+from bot.handlers.share import share_state
 
 user_state = {}
 
@@ -46,7 +47,7 @@ def register_syllabus(bot):
     # =========================
     # ENTRY
     # =========================
-    @bot.message_handler(func=lambda m: m.text == "📚 المناهج")
+    @bot.message_handler(func=lambda m: m.text == "📚 المناهج" and m.chat.id not in share_state)
     def syllabus(message):
 
         majors = get_majors()

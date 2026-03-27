@@ -6,8 +6,11 @@ from bot.database.queries.semesters import get_semester_id
 from bot.database.queries.resources import add_resource, delete_resource
 from bot.database.connection import get_connection
 from bot.utils.pagination import paginate, pagination_keyboard
+from bot.handlers.share import share_state
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton
+
+
 
 admin_state = {}
 admin_history = {}
@@ -31,7 +34,7 @@ def push_history(chat_id, keyboard):
 
 def register_admin_panel(bot):
 
-    @bot.message_handler(func=lambda m: m.text == "⚙️ Admin Panel")
+    @bot.message_handler(func=lambda m: m.text == "⚙️ Admin Panel" and m.chat.id not in share_state)
     def admin_panel(message):
 
         if message.from_user.id not in ADMINS:
