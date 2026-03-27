@@ -2,4 +2,4 @@ import psycopg2
 from bot.config import DATABASE_URL
 
 def get_connection():
-    return psycopg2.connect(DATABASE_URL)
+    return psycopg2.connect(DATABASE_URL, connect_timeout=5, sslmode='require')

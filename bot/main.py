@@ -10,6 +10,7 @@ from bot.database.db import init_db
 from flask import Flask
 import threading
 import os
+import time
 
 # -------------------------
 # REGISTER HANDLERS
@@ -19,7 +20,7 @@ register_admin_panel(bot)
 register_syllabus(bot)
 
 # -------------------------
-# FLASK APP (for uptime monitor)
+# FLASK APP (KEEP ALIVE)
 # -------------------------
 app = Flask(__name__)
 
@@ -30,21 +31,29 @@ def home():
 def run_web():
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
 
-# Start web server in a separate thread
-threading.Thread(target=run_web).start()
+# -------------------------
+# SAFE POLLING LOOP
+# -------------------------
+def start_bot():
+    while True:
+        try:
+            print("Bot polling started...")
+            bot.infinity_polling(timeout=10, long_polling_timeout=5)
+        except Exception as e:
+            print("Polling crashed:", e)
+            time.sleep(5)
 
 # -------------------------
-# INIT DB
+# START EVERYTHING
 # -------------------------
-init_db()
+if __name__ == "__main__":
+    init_db()
 
-from bot.bot_instance import bot
+    bot.delete_webhook()
+    print("Webhook deleted")
 
-bot.delete_webhook()
-print("Webhook deleted")
+    # Start Flask
+    threading.Thread(target=run_web).start()
 
-# -------------------------
-# START BOT POLLING
-# -------------------------
-print("Bot is ready! Waiting for Telegram updates...")
-bot.infinity_polling(timeout=10, long_polling_timeout=5)
+    # Start Bot (SAFE)
+    start_bot()
