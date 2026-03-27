@@ -46,7 +46,7 @@ def register_syllabus(bot):
     # =========================
     # ENTRY
     # =========================
-    @bot.message_handler(func=lambda m: m.text == "📚 Syllabus")
+    @bot.message_handler(func=lambda m: m.text == "📚 المناهج")
     def syllabus(message):
 
         majors = get_majors()
