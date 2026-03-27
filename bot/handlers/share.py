@@ -2,10 +2,7 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from bot.config import ADMINS
 from bot.keyboards.main_menu_keyboard import main_menu
 
-# -------------------------
-# STATE
-# -------------------------
-share_state = {}   # {chat_id: {"active": True, "message": message}}
+share_state = {}  # {chat_id: {"active": True, "message": message, "waiting_confirm": bool}}
 
 
 def register_share_handlers(bot):
@@ -18,12 +15,15 @@ def register_share_handlers(bot):
 
         chat_id = message.chat.id
 
-        share_state[chat_id] = {"active": True}
+        share_state[chat_id] = {
+            "active": True,
+            "waiting_confirm": False
+        }
 
         bot.send_message(
             chat_id,
             "📤 *Share Mode Activated*\n\n"
-            "Send your resource (file/photo/text).\n\n"
+            "Send your resource (file / photo / video / link / text).\n\n"
             "⚠️ You must confirm before sending.\n"
             "Send /cancel to exit.",
             parse_mode="Markdown"
@@ -31,16 +31,19 @@ def register_share_handlers(bot):
 
 
     # -------------------------
-    # UNIVERSAL SHARE MODE ROUTER
-    # (THIS FIXES EVERYTHING)
+    # GLOBAL SHARE MODE LOCK (HIGH PRIORITY)
     # -------------------------
-    @bot.message_handler(func=lambda m: m.chat.id in share_state and share_state[m.chat.id].get("active"), content_types=["text", "photo", "document", "video", "audio"])
-    def share_router(message):
+    @bot.message_handler(func=lambda m: m.chat.id in share_state)
+    def share_mode_guard(message):
 
         chat_id = message.chat.id
+        state = share_state.get(chat_id)
+
+        if not state or not state.get("active"):
+            return
 
         # -------- CANCEL COMMAND --------
-        if message.text == "/cancel":
+        if message.text and message.text.strip() == "/cancel":
             share_state.pop(chat_id, None)
 
             bot.send_message(
@@ -50,7 +53,7 @@ def register_share_handlers(bot):
             )
             return
 
-        # -------- BLOCK MENU BUTTONS --------
+        # -------- BLOCK MAIN MENU --------
         if message.text in ["📚 المناهج", "📤 Share Resources", "⚙️ Admin Panel"]:
             bot.send_message(
                 chat_id,
@@ -58,14 +61,22 @@ def register_share_handlers(bot):
             )
             return
 
-        # -------- STORE MESSAGE --------
-        share_state[chat_id]["message"] = message
+        # -------- PREVENT MULTIPLE SUBMISSIONS --------
+        if state.get("waiting_confirm"):
+            bot.send_message(
+                chat_id,
+                "⚠️ Confirm or cancel your previous submission first."
+            )
+            return
 
-        # -------- CONFIRM UI --------
+        # -------- ACCEPT ANY CONTENT (INCLUDING LINKS) --------
+        state["message"] = message
+        state["waiting_confirm"] = True
+
         markup = InlineKeyboardMarkup()
         markup.add(
-            InlineKeyboardButton("✅ Confirm", callback_data="share:confirm"),
-            InlineKeyboardButton("❌ Cancel", callback_data="share:cancel")
+            InlineKeyboardButton("✅ Confirm", callback_data=f"share_confirm:{chat_id}"),
+            InlineKeyboardButton("❌ Cancel", callback_data=f"share_cancel:{chat_id}")
         )
 
         bot.send_message(
@@ -76,29 +87,32 @@ def register_share_handlers(bot):
 
 
     # -------------------------
-    # SINGLE CALLBACK ROUTER
+    # CALLBACK HANDLER (STRONG FILTER)
     # -------------------------
-    @bot.callback_query_handler(func=lambda c: c.data.startswith("share:"))
-    def share_callback_router(call):
+    @bot.callback_query_handler(func=lambda c: c.data.startswith("share_confirm") or c.data.startswith("share_cancel"))
+    def share_callback(call):
 
-        chat_id = call.message.chat.id
+        try:
+            action, chat_id = call.data.split(":")
+            chat_id = int(chat_id)
+        except:
+            bot.answer_callback_query(call.id, "Invalid action.")
+            return
 
-        if chat_id not in share_state:
+        state = share_state.get(chat_id)
+
+        if not state:
             bot.answer_callback_query(call.id, "Session expired.")
             return
 
-        action = call.data.split(":")[1]
-
         # -------- CONFIRM --------
-        if action == "confirm":
+        if action == "share_confirm":
 
-            state = share_state.get(chat_id)
+            msg = state.get("message")
 
-            if not state or "message" not in state:
+            if not msg:
                 bot.answer_callback_query(call.id, "No resource found.")
                 return
-
-            msg = state["message"]
 
             for admin_id in ADMINS:
                 try:
@@ -112,11 +126,11 @@ def register_share_handlers(bot):
 
             share_state.pop(chat_id, None)
 
-            bot.answer_callback_query(call.id, "Sent!")
+            bot.answer_callback_query(call.id, "✅ Sent!")
 
             bot.edit_message_text(
                 "✅ Resource sent successfully!",
-                chat_id,
+                call.message.chat.id,
                 call.message.message_id
             )
 
@@ -128,15 +142,15 @@ def register_share_handlers(bot):
 
 
         # -------- CANCEL --------
-        elif action == "cancel":
+        elif action == "share_cancel":
 
             share_state.pop(chat_id, None)
 
-            bot.answer_callback_query(call.id, "Cancelled.")
+            bot.answer_callback_query(call.id, "❌ Cancelled.")
 
             bot.edit_message_text(
                 "❌ Share cancelled.",
-                chat_id,
+                call.message.chat.id,
                 call.message.message_id
             )
 
