@@ -10,9 +10,10 @@ import threading
 import os
 
 # Register handlers
+register_share_handlers(bot)
 register_admin_panel(bot)
 register_syllabus(bot)
-register_share_handlers(bot)
+
 
 
 app = Flask(__name__)

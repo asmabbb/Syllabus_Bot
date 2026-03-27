@@ -1,13 +1,19 @@
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 from bot.config import ADMINS
 from bot.keyboards.main_menu_keyboard import main_menu
 
 # -------------------------
 # STATE
 # -------------------------
-share_state = {}  # {chat_id: {"step": "waiting_resource" / "waiting_confirm", "message": msg}}
+share_state = {}  # {chat_id: {"step": "...", "message": msg}}
 
 MAIN_MENU_BUTTONS = ["📚 المناهج", "📤 Share Resources", "⚙️ Admin Panel"]
+
+
+def confirm_keyboard():
+    markup = ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add("✅ Confirm", "❌ Cancel")
+    return markup
 
 
 def register_share_handlers(bot):
@@ -17,6 +23,7 @@ def register_share_handlers(bot):
     # -------------------------
     @bot.message_handler(func=lambda m: m.text == "📤 Share Resources")
     def enter_share_mode(message):
+
         chat_id = message.chat.id
 
         share_state[chat_id] = {
@@ -26,21 +33,20 @@ def register_share_handlers(bot):
 
         bot.send_message(
             chat_id,
-            "📤 *Share Mode Activated*\n\n"
+            "📤 Share Mode Activated\n\n"
             "Send your resource (file / photo / video / link / text).\n\n"
-            "⚠️ You must confirm before sending.\n"
-            "Send /cancel to exit.",
-            parse_mode="Markdown"
+            "Then confirm or cancel.",
         )
 
+
     # -------------------------
-    # 🔒 SHARE MODE ROUTER (ONLY HANDLER INSIDE MODE)
+    # 🔒 HARD SHARE MODE ROUTER
     # -------------------------
     @bot.message_handler(
         func=lambda m: m.chat.id in share_state,
         content_types=["text", "photo", "document", "video", "audio"]
     )
-    def share_mode_router(message):
+    def share_router(message):
 
         chat_id = message.chat.id
         state = share_state.get(chat_id)
@@ -48,8 +54,11 @@ def register_share_handlers(bot):
         if not state:
             return
 
+        # -------- FORCE BLOCK EVERYTHING ELSE --------
+        # (THIS makes share mode dominant)
+        
         # -------- CANCEL COMMAND --------
-        if message.text and message.text.strip() == "/cancel":
+        if message.text and message.text.strip().lower() == "/cancel":
             share_state.pop(chat_id, None)
 
             bot.send_message(
@@ -59,7 +68,7 @@ def register_share_handlers(bot):
             )
             return
 
-        # -------- BLOCK MAIN MENU BUTTONS --------
+        # -------- BLOCK MAIN MENU --------
         if message.text in MAIN_MENU_BUTTONS:
             bot.send_message(
                 chat_id,
@@ -67,102 +76,64 @@ def register_share_handlers(bot):
             )
             return
 
-        # -------- STEP 1: WAITING RESOURCE --------
+        # -------------------------
+        # STEP 1: RECEIVE RESOURCE
+        # -------------------------
         if state["step"] == "waiting_resource":
 
             state["message"] = message
             state["step"] = "waiting_confirm"
 
-            markup = InlineKeyboardMarkup()
-            markup.row(
-                InlineKeyboardButton("✅ Confirm", callback_data=f"share_confirm:{chat_id}"),
-                InlineKeyboardButton("❌ Cancel", callback_data=f"share_cancel:{chat_id}")
-            )
-
             bot.send_message(
                 chat_id,
-                "Do you want to send this resource to admins?",
-                reply_markup=markup
+                "Confirm sending this resource?",
+                reply_markup=confirm_keyboard()
             )
             return
 
-        # -------- STEP 2: WAITING CONFIRM --------
+        # -------------------------
+        # STEP 2: CONFIRM / CANCEL
+        # -------------------------
         if state["step"] == "waiting_confirm":
-            bot.send_message(
-                chat_id,
-                "⚠️ Please confirm or cancel the previous resource first."
-            )
-            return
 
-    # -------------------------
-    # CALLBACK HANDLER (STRICT)
-    # -------------------------
-    @bot.callback_query_handler(func=lambda c: c.data.startswith("share_"))
-    def share_callback_handler(call):
+            # CONFIRM
+            if message.text == "✅ Confirm":
 
-        try:
-            action, chat_id = call.data.split(":")
-            chat_id = int(chat_id)
-        except:
-            bot.answer_callback_query(call.id, "Invalid action.")
-            return
+                msg = state["message"]
 
-        state = share_state.get(chat_id)
+                for admin_id in ADMINS:
+                    try:
+                        bot.forward_message(
+                            admin_id,
+                            msg.chat.id,
+                            msg.message_id
+                        )
+                    except:
+                        pass
 
-        if not state:
-            bot.answer_callback_query(call.id, "Session expired.")
-            return
+                share_state.pop(chat_id, None)
 
-        # -------- CONFIRM --------
-        if action == "share_confirm":
-
-            msg = state.get("message")
-
-            if not msg:
-                bot.answer_callback_query(call.id, "No resource found.")
+                bot.send_message(
+                    chat_id,
+                    "✅ Resource sent successfully!",
+                    reply_markup=main_menu(is_admin=(message.from_user.id in ADMINS))
+                )
                 return
 
-            for admin_id in ADMINS:
-                try:
-                    bot.forward_message(
-                        admin_id,
-                        msg.chat.id,
-                        msg.message_id
-                    )
-                except:
-                    pass
+            # CANCEL
+            if message.text == "❌ Cancel":
+                share_state.pop(chat_id, None)
 
-            share_state.pop(chat_id, None)
+                bot.send_message(
+                    chat_id,
+                    "❌ Share cancelled.",
+                    reply_markup=main_menu(is_admin=(message.from_user.id in ADMINS))
+                )
+                return
 
-            bot.answer_callback_query(call.id, "✅ Sent!")
-
-            bot.edit_message_text(
-                "✅ Resource sent successfully!",
-                call.message.chat.id,
-                call.message.message_id
-            )
-
+            # INVALID INPUT
             bot.send_message(
                 chat_id,
-                "Back to menu 👇",
-                reply_markup=main_menu(is_admin=(call.from_user.id in ADMINS))
+                "⚠️ Please press Confirm or Cancel."
             )
-
-        # -------- CANCEL --------
-        elif action == "share_cancel":
-
-            share_state.pop(chat_id, None)
-
-            bot.answer_callback_query(call.id, "❌ Cancelled.")
-
-            bot.edit_message_text(
-                "❌ Share cancelled.",
-                call.message.chat.id,
-                call.message.message_id
-            )
-
-            bot.send_message(
-                chat_id,
-                "Back to menu 👇",
-                reply_markup=main_menu(is_admin=(call.from_user.id in ADMINS))
-            )
+            return
