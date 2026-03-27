@@ -38,6 +38,11 @@ threading.Thread(target=run_web).start()
 # -------------------------
 init_db()
 
+from bot.bot_instance import bot
+
+bot.delete_webhook()
+print("Webhook deleted")
+
 # -------------------------
 # START BOT POLLING
 # -------------------------
