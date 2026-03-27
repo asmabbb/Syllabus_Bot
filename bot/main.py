@@ -31,6 +31,18 @@ def home():
 def run_web():
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
 
+
+
+# Enable Telebot internal recovery
+bot.enable_save_next_step_handlers(delay=2)
+bot.load_next_step_handlers()
+
+
+# Add an API helper
+import telebot.apihelper
+
+telebot.apihelper.SESSION_TIME_TO_LIVE = 60 * 5 # 5 minutes
+
 # -------------------------
 # SAFE POLLING LOOP
 # -------------------------
@@ -38,7 +50,7 @@ import threading
 
 def polling_worker():
     try:
-        bot.infinity_polling(timeout=10, long_polling_timeout=5)
+        bot.infinity_polling(timeout=20, long_polling_timeout=20, skip_pending=True)
     except Exception as e:
         print("Polling crashed:", e)
 
