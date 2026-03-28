@@ -530,26 +530,33 @@ def register_admin_panel(bot):
         )
 
 
-    @bot.message_handler(content_types=["document","photo", "text", "audio", "video", "audio", "voice"])
+    @bot.message_handler(
+        func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "uploading_resource",
+        content_types=["document", "photo", "text", "audio", "video", "voice"]
+    )
     def receive_resource(message):
 
         state = admin_state.get(message.chat.id)
 
-        if not state or state.get("action") != "uploading_resource":
-            return
-
         if message.document:
             file_id = message.document.file_id
+
         elif message.photo:
             file_id = message.photo[-1].file_id
+
         elif message.video:
             file_id = message.video.file_id
+
         elif message.audio:
             file_id = message.audio.file_id
+
         elif message.voice:
             file_id = message.voice.file_id
+
         elif message.text:
-            file_id = message.text
+            # links are text in Telegram
+            file_id = message.text.strip()
+
         else:
             bot.send_message(message.chat.id, "Unsupported content type.")
             return
