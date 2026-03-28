@@ -35,7 +35,7 @@ def register_share_handlers(bot):
             chat_id,
             "📤 Share Mode Activated\n\n"
             "Send your resource (file / photo / video / link / text).\n\n"
-            "Then confirm or cancel.",
+            "Then confirm or /cancel.",
         )
 
 
