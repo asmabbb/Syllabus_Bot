@@ -529,19 +529,43 @@ def register_admin_panel(bot):
             reply_markup=markup
         )
 
-
-    @bot.message_handler(content_types=["document","photo"])
+    @bot.message_handler(content_types=["document", "photo", "video", "audio", "voice", "video_note", "animation", "sticker", "text"])
     def receive_resource(message):
-
         state = admin_state.get(message.chat.id)
 
-        if not state or state.get("action") != "uploading_resource":
+        if not state:
             return
 
         if message.document:
             file_id = message.document.file_id
-        else:
+
+        elif message.photo:
             file_id = message.photo[-1].file_id
+
+        elif message.video:
+            file_id = message.video.file_id
+
+        elif message.audio:
+            file_id = message.audio.file_id
+
+        elif message.voice:
+            file_id = message.voice.file_id
+
+        elif message.video_note:
+            file_id = message.video_note.file_id
+
+        elif message.animation:
+            file_id = message.animation.file_id
+
+        elif message.sticker:
+            file_id = message.sticker.file_id
+
+        elif message.text:
+            file_id = message.text   # this stores links or plain text
+
+        else:
+            bot.send_message(message.chat.id, "Unsupported type.")
+            return
 
         state["file_id"] = file_id
 
