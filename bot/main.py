@@ -1,7 +1,7 @@
 from bot.bot_instance import bot
 import telebot
 
-import bot.handlers.start
+from bot.handlers import start as start_handler
 from bot.handlers.admin_panel import register_admin_panel
 from bot.handlers.syllabus import register_syllabus
 from bot.handlers.share import register_share_handlers
