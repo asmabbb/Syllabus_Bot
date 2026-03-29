@@ -563,6 +563,9 @@ def register_admin_panel(bot):
 
         state["file_id"] = file_id
 
+        #MOVE TO NEXT STEP
+        state["action"] = "uploading_resource_year"
+
         bot.send_message(
             message.chat.id,
             "Enter academic year (example: 2023):"
@@ -577,6 +580,9 @@ def register_admin_panel(bot):
         state = admin_state.get(message.chat.id)
 
         state["file_id"] = message.text.strip()
+
+        # MOVE TO NEXT STEP
+        state["action"] = "uploading_resource_year"
 
         bot.send_message(
             message.chat.id,
@@ -681,7 +687,7 @@ def register_admin_panel(bot):
         state = admin_state.get(call.message.chat.id)
 
         state["category"] = category
-        state["action"] = "uploading_resource"
+        state["action"] = "uploading_resource_file"
 
         bot.send_message(
             call.message.chat.id,
@@ -701,6 +707,9 @@ def register_admin_panel(bot):
         state = admin_state[message.chat.id]
         state["year"] = year
 
+        # MOVE TO NEXT STEP
+        state["action"] = "uploading_resource_season"
+
         bot.send_message(
             message.chat.id,
             "Enter season (fall/spring/summer):"
@@ -717,6 +726,9 @@ def register_admin_panel(bot):
 
         state = admin_state[message.chat.id]
         state["season"] = season
+
+        # MOVE TO NEXT STEP
+        state["action"] = "uploading_resource_title"
 
         bot.send_message(
             message.chat.id,
@@ -739,6 +751,7 @@ def register_admin_panel(bot):
             season=state["season"]
         )
 
+        # CLEAR STATE COMPLETELY
         admin_state.pop(message.chat.id)
 
         bot.send_message(
