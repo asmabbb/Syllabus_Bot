@@ -2,10 +2,13 @@ from bot.bot_instance import bot
 from bot.database.queries.users import get_user, create_user
 from bot.keyboards.main_menu_keyboard import main_menu
 from bot.config import ADMINS
+from bot.handlers.admin_panel import admin_state
 
 
 @bot.message_handler(commands=['start'])
 def start_handler(message):
+    admin_state.pop(message.chat.id, None)
+
     user_id = message.from_user.id
     is_admin = user_id in ADMINS
     chat_id = message.chat.id

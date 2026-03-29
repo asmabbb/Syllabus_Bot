@@ -78,7 +78,6 @@ def register_admin_panel(bot):
         markup = ReplyKeyboardMarkup(resize_keyboard=True)
 
         markup.add("Upload Resource")
-        markup.add("View Resources")
         markup.add("Delete Resource")
 
         markup.add("⬅ Back")
@@ -531,8 +530,9 @@ def register_admin_panel(bot):
 
 
     @bot.message_handler(
-        func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "uploading_resource",
-        content_types=["document", "photo", "text", "audio", "video", "voice"]
+        func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "uploading_resource"
+                  and "file_id" not in admin_state.get(m.chat.id, {}),
+        content_types=["document", "photo", "audio", "video", "voice"]
     )
     def receive_resource(message):
 
@@ -562,6 +562,21 @@ def register_admin_panel(bot):
             return
 
         state["file_id"] = file_id
+
+        bot.send_message(
+            message.chat.id,
+            "Enter academic year (example: 2023):"
+        )
+
+
+    @bot.message_handler(
+    func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "uploading_resource" and m.text
+)
+    def receive_resource_link(message):
+
+        state = admin_state.get(message.chat.id)
+
+        state["file_id"] = message.text.strip()
 
         bot.send_message(
             message.chat.id,
@@ -732,13 +747,6 @@ def register_admin_panel(bot):
         )
 
     
-
-    @bot.message_handler(func=lambda m: m.text == "View Resources")
-    def view_resources(message):
-        bot.send_message(message.chat.id, "Feature coming soon.")
-
-
-
 
     @bot.message_handler(func=lambda m: m.text == "⬅ Back")
     def go_back(message):
