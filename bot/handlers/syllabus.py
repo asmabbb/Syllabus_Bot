@@ -68,7 +68,7 @@ def register_syllabus(bot):
 
 
     # =========================
-    # CALLBACK ROUTER (🔥 ONLY ONE)
+    # CALLBACK ROUTER (ONLY ONE)
     # =========================
     @bot.callback_query_handler(func=lambda call: True)
     def router(call):
@@ -197,12 +197,28 @@ def register_syllabus(bot):
             title = res["titles"][idx]
 
             for file_id, year, season in res["grouped"][title]:
-                bot.send_document(
-                    chat_id,
-                    file_id,
-                    caption=f"{(season or '').capitalize()} {year or ''}"
-                )
 
+                caption = f"{(season or '').capitalize()} {year or ''}"
+
+                # LINK
+                if file_id.startswith("http"):
+                    bot.send_message(chat_id, f"{title}\n{file_id}")
+
+                # PHOTO
+                elif file_id.startswith("AgACAg"):
+                    bot.send_photo(chat_id, file_id, caption=caption)
+
+                # VIDEO
+                elif file_id.startswith("BAACAg"):
+                    bot.send_video(chat_id, file_id, caption=caption)
+
+                # AUDIO
+                elif file_id.startswith("CQACAg"):
+                    bot.send_audio(chat_id, file_id, caption=caption)
+
+                # DEFAULT = DOCUMENT
+                else:
+                    bot.send_document(chat_id, file_id, caption=caption)
 
         # =========================
         # BACK
