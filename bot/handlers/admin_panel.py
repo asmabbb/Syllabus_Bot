@@ -530,7 +530,7 @@ def register_admin_panel(bot):
 
 
     @bot.message_handler(
-        func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "uploading_resource"
+        func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "uploading_resource_file"
                   and "file_id" not in admin_state.get(m.chat.id, {}),
         content_types=["document", "photo", "audio", "video", "voice", "text"]
     )
