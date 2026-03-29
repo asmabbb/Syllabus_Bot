@@ -532,7 +532,7 @@ def register_admin_panel(bot):
     @bot.message_handler(
         func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "uploading_resource"
                   and "file_id" not in admin_state.get(m.chat.id, {}),
-        content_types=["document", "photo", "audio", "video", "voice"]
+        content_types=["document", "photo", "audio", "video", "voice", "text"]
     )
     def receive_resource(message):
 
@@ -553,6 +553,9 @@ def register_admin_panel(bot):
         elif message.voice:
             file_id = message.voice.file_id
 
+        elif message.text:
+            file_id = message.text.strip()
+
         else:
             bot.send_message(message.chat.id, "Unsupported content type.")
             return
@@ -560,24 +563,6 @@ def register_admin_panel(bot):
         state["file_id"] = file_id
 
         #MOVE TO NEXT STEP
-        state["action"] = "uploading_resource_year"
-
-        bot.send_message(
-            message.chat.id,
-            "Enter academic year (example: 2023):"
-        )
-
-
-    @bot.message_handler(
-    func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "uploading_resource" and m.text
-)
-    def receive_resource_link(message):
-
-        state = admin_state.get(message.chat.id)
-
-        state["file_id"] = message.text.strip()
-
-        # MOVE TO NEXT STEP
         state["action"] = "uploading_resource_year"
 
         bot.send_message(
@@ -691,7 +676,7 @@ def register_admin_panel(bot):
         )
 
 
-    @bot.message_handler(func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "uploading_resource" and "file_id" in admin_state.get(m.chat.id, {}) and "year" not in admin_state.get(m.chat.id, {}))
+    @bot.message_handler(func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "uploading_resource_year" and "file_id" in admin_state.get(m.chat.id, {}) and "year" not in admin_state.get(m.chat.id, {}))
     def receive_year(message):
 
         try:
@@ -712,7 +697,7 @@ def register_admin_panel(bot):
         )
 
 
-    @bot.message_handler(func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "uploading_resource" and "year" in admin_state.get(m.chat.id, {}) and "season" not in admin_state.get(m.chat.id, {}))
+    @bot.message_handler(func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "uploading_resource_season" and "year" in admin_state.get(m.chat.id, {}) and "season" not in admin_state.get(m.chat.id, {}))
     def receive_season(message):
 
         season = message.text.lower()
@@ -732,7 +717,7 @@ def register_admin_panel(bot):
         )
 
 
-    @bot.message_handler(func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "uploading_resource" and "season" in admin_state.get(m.chat.id, {}) and "title" not in admin_state.get(m.chat.id, {}))
+    @bot.message_handler(func=lambda m: admin_state.get(m.chat.id, {}).get("action") == "uploading_resource_title" and "season" in admin_state.get(m.chat.id, {}) and "title" not in admin_state.get(m.chat.id, {}))
     def receive_title(message):
 
         state = admin_state[message.chat.id]
