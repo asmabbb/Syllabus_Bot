@@ -553,10 +553,6 @@ def register_admin_panel(bot):
         elif message.voice:
             file_id = message.voice.file_id
 
-        elif message.text:
-            # links are text in Telegram
-            file_id = message.text.strip()
-
         else:
             bot.send_message(message.chat.id, "Unsupported content type.")
             return
