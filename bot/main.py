@@ -8,14 +8,12 @@ from bot.handlers.share import register_share_handlers
 
 from bot.database.db import init_db
 
-from flask import Flask, request
 import os
 
 # -------------------------
 # CONFIG
 # -------------------------
 TOKEN = os.environ.get("BOT_TOKEN")
-RENDER_URL = os.environ.get("RENDER_EXTERNAL_URL")  # IMPORTANT
 
 # -------------------------
 # REGISTER HANDLERS
@@ -25,39 +23,15 @@ register_admin_panel(bot)
 register_syllabus(bot)
 
 # -------------------------
-# FLASK APP
-# -------------------------
-app = Flask(__name__)
-
-@app.route("/")
-def home():
-    return "Bot is alive (webhook mode)"
-
-# 🔥 THIS IS THE IMPORTANT ROUTE
-@app.route(f"/{TOKEN}", methods=["POST"])
-def webhook():
-    json_str = request.get_data().decode("UTF-8")
-    update = telebot.types.Update.de_json(json_str)
-    bot.process_new_updates([update])
-    return "OK", 200
-
-
-# -------------------------
 # STARTUP
 # -------------------------
 if __name__ == "__main__":
     init_db()
 
-    print("Setting webhook...")
+    print("Starting bot in polling mode...")
 
     bot.remove_webhook()
 
-    webhook_url = f"{RENDER_URL}/{TOKEN}"
+    print("Bot is running...")
 
-    print("Webhook URL:", webhook_url)
-
-    bot.set_webhook(url=webhook_url)
-
-    print("Webhook set successfully!")
-
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+    bot.infinity_polling()
