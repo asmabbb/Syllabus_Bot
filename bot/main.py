@@ -1,5 +1,4 @@
 from bot.bot_instance import bot
-import telebot
 
 from bot.handlers import start as start_handler
 from bot.handlers.admin_panel import register_admin_panel
@@ -7,13 +6,6 @@ from bot.handlers.syllabus import register_syllabus
 from bot.handlers.share import register_share_handlers
 
 from bot.database.db import init_db
-
-import os
-
-# -------------------------
-# CONFIG
-# -------------------------
-TOKEN = os.environ.get("BOT_TOKEN")
 
 # -------------------------
 # REGISTER HANDLERS
