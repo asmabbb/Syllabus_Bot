@@ -1,7 +1,7 @@
 from bot.bot_instance import bot
 from bot.database.queries.users import get_user, create_user
 from bot.keyboards.main_menu_keyboard import main_menu
-from bot.config import ADMINS
+from bot.config import is_admin, is_super_admin
 from bot.handlers.admin_panel import admin_state
 
 
@@ -10,13 +10,12 @@ def start_handler(message):
     admin_state.pop(message.chat.id, None)
 
     user_id = message.from_user.id
-    is_admin = user_id in ADMINS
+    admin = is_admin(user_id)
     chat_id = message.chat.id
 
     user = get_user(user_id)
 
     if not user:
-        role = "admin" if user_id in ADMINS else "student"
-        create_user(user_id, role)
+        create_user(user_id, "student")
 
-    bot.send_message(chat_id, f"Welcome {message.from_user.first_name} to the Syllabus Bot!", reply_markup=main_menu(is_admin))
+    bot.send_message(chat_id, f"Welcome {message.from_user.first_name} to the Syllabus Bot!", reply_markup=main_menu(admin))
