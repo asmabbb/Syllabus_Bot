@@ -1,5 +1,5 @@
 import bot
-from bot.config import ADMINS, OWNER_ID
+from bot.config import OWNER_ID
 from bot.keyboards.admin_panel_keyboard import admin_menu, majors_menu, subjects_menu, manage_admins_menu, add_admin_menu, remove_admin_menu
 from bot.database.queries.majors import add_major, get_majors, delete_major, update_major
 from bot.database.queries.subjects import add_subject, get_subjects, delete_subject
@@ -9,7 +9,7 @@ from bot.database.queries.admins import make_minor_admin, make_super_admin, get_
 from bot.database.queries.users import user_exists
 from bot.database.connection import get_connection
 from bot.utils.pagination import paginate, pagination_keyboard
-from bot.utils.permissions import is_super_admin, is_owner
+from bot.utils.permissions import is_super_admin, is_owner, is_admin
 from bot.handlers.share import share_state
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton
@@ -41,7 +41,7 @@ def register_admin_panel(bot):
     @bot.message_handler(func=lambda m: m.text == "⚙️ Admin Panel" and m.chat.id not in share_state)
     def admin_panel(message):
 
-        if message.from_user.id not in ADMINS:
+        if not is_admin(message.from_user.id):
             return
         
         push_history(message.chat.id, admin_menu)
@@ -753,12 +753,12 @@ def register_admin_panel(bot):
 
         if chat_id not in admin_history or len(admin_history[chat_id]) <= 1:
             from bot.keyboards.main_menu_keyboard import main_menu
-            is_admin = message.from_user.id in ADMINS
+            admin = is_admin(message.from_user.id)
 
             bot.send_message(
                 chat_id,
                 "Main Menu",
-                reply_markup=main_menu(is_admin)
+                reply_markup=main_menu(admin)
             )
             return
 

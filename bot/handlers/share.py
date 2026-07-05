@@ -1,6 +1,6 @@
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton
-from bot.config import ADMINS
 from bot.keyboards.main_menu_keyboard import main_menu
+from bot.utils.permissions import is_admin
 
 # -------------------------
 # STATE
@@ -64,7 +64,7 @@ def register_share_handlers(bot):
             bot.send_message(
                 chat_id,
                 "❌ Share mode exited.",
-                reply_markup=main_menu(is_admin=(message.from_user.id in ADMINS))
+                reply_markup=main_menu(is_admin=is_admin(message.from_user.id))
             )
             return
 
@@ -101,10 +101,10 @@ def register_share_handlers(bot):
 
                 msg = state["message"]
 
-                for admin_id in ADMINS:
+                if is_admin(message.from_user.id):
                     try:
                         bot.forward_message(
-                            admin_id,
+                            message.from_user.id,
                             msg.chat.id,
                             msg.message_id
                         )
@@ -116,7 +116,7 @@ def register_share_handlers(bot):
                 bot.send_message(
                     chat_id,
                     "✅ Resource sent successfully!",
-                    reply_markup=main_menu(is_admin=(message.from_user.id in ADMINS))
+                    reply_markup=main_menu(is_admin=is_admin(message.from_user.id))
                 )
                 return
 
@@ -127,7 +127,7 @@ def register_share_handlers(bot):
                 bot.send_message(
                     chat_id,
                     "❌ Share cancelled.",
-                    reply_markup=main_menu(is_admin=(message.from_user.id in ADMINS))
+                    reply_markup=main_menu(is_admin=is_admin(message.from_user.id))
                 )
                 return
 
