@@ -27,3 +27,25 @@ def create_user(user_id, role):
     conn.commit()
     cursor.close()
     conn.close()
+
+
+
+
+def user_exists(user_id):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        select 1
+        from users
+        where user_id = %s
+        """, (user_id,)
+    )
+
+    exits = cur.fetchone() is not None
+
+    cur.close()
+    conn.close()
+
+    return exits

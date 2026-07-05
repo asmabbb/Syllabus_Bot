@@ -71,10 +71,14 @@ def get_all_admins():
 
     cur.execute(
         """
-        SELECT user_id
+        SELECT user_id, role
         FROM users
         where role IN ('super_admin', 'minor_admin')
-        order by role DESC, user_id
+        order by case 
+                    when role = 'super_admin' then 1
+                    when role = 'minor_admin' then 2
+                end,
+        user_id
 """
     )
 
@@ -136,7 +140,7 @@ def remove_admin(user_id):
     )
 
     conn.commit()
-    
+
     cur.close()
     conn.close()
 

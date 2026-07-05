@@ -1,11 +1,15 @@
-from bot.config import ADMINS
-from bot.keyboards.admin_panel_keyboard import admin_menu, majors_menu, subjects_menu
+import bot
+from bot.config import ADMINS, OWNER_ID
+from bot.keyboards.admin_panel_keyboard import admin_menu, majors_menu, subjects_menu, manage_admins_menu, add_admin_menu, remove_admin_menu
 from bot.database.queries.majors import add_major, get_majors, delete_major, update_major
 from bot.database.queries.subjects import add_subject, get_subjects, delete_subject
 from bot.database.queries.semesters import get_semester_id
 from bot.database.queries.resources import add_resource, delete_resource
+from bot.database.queries.admins import make_minor_admin, make_super_admin, get_role, get_all_admins, remove_admin
+from bot.database.queries.users import user_exists
 from bot.database.connection import get_connection
 from bot.utils.pagination import paginate, pagination_keyboard
+from bot.utils.permissions import is_super_admin, is_owner
 from bot.handlers.share import share_state
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton
@@ -45,7 +49,7 @@ def register_admin_panel(bot):
         bot.send_message(
             message.chat.id,
             "Admin Panel:",
-            reply_markup=admin_menu()
+            reply_markup=admin_menu(message.from_user.id)
         )
 
 
@@ -851,3 +855,180 @@ def register_admin_panel(bot):
             call.message.message_id,
             reply_markup=markup
         )
+
+    
+
+    ## Additional handlers for managing admins can be added here, following a similar pattern to the above handlers.
+    @bot.message_handler(func = lambda m: m.text == "Manage Admins" and is_super_admin(m.from_user.id))
+    def manage_admins_handlers(message):
+
+        bot.send_message(
+            message.chat.id,
+            "Manage Admins:",
+            reply_markup=manage_admins_menu()
+        )
+
+
+    @bot.message_handler(func = lambda m: m.text == "Add Admin" and is_super_admin(m.from_user.id))
+    def add_admin_handler(message):
+
+        bot.send_message(message.chat.id, "Choose the type of admin to add:", reply_markup=add_admin_menu(message.from_user.id))
+
+
+    
+    @bot.message_handler(func = lambda m: m.text == "Minor Admins" and is_super_admin(m.from_user.id))
+    def choose_minor_admin(message):
+
+        admin_state[message.chat.id] = "waiting_for_minor_admin_id"
+
+        bot.send_message(message.chat.id, "Please send the user ID of the new Minor Admin.")
+
+
+
+    @bot.message_handler(func = lambda m: m.text == "Superior Admins" and is_super_admin(m.from_user.id))
+    def choose_superior_admin(message):
+
+        admin_state[message.chat.id] = "waiting_for_superior_admin_id"
+
+        bot.send_message(message.chat.id, "Please send the user ID of the new Superior Admin.") 
+
+
+
+    @bot.message_handler(func = lambda m: admin_state.get(m.chat.id) in ("waiting_for_minor_admin_id", "waiting_for_superior_admin_id") )
+    def receive_admin_id(message):
+
+        chat_id = message.chat.id
+        text = message.text.strip()
+
+        if not text.isdigit():
+            bot.send_message(chat_id, "❌ Please send a valid Telegram ID.")
+            return
+        
+        user_id = int(text)
+
+        if not user_exists(user_id):
+
+            bot.send_message(
+                chat_id,
+                "❌ That user has never started the bot.\n\n"
+                "Ask them to send /start first."
+              )
+            
+        current_role = get_role(user_id)
+        
+        if current_role == "super_admin":
+            bot.send_message(chat_id, "That user is already a Super Admin.")
+            return
+
+
+        if (current_role == "minor_admin" and admin_state[chat_id] == "waiting_for_minor_admin_id") or (current_role == "super_admin" and admin_state[chat_id] == "waiting_for_superior_admin_id"):
+            bot.send_message(chat_id, "That user is already a Minor Admin.")
+            return
+        
+
+        if admin_state[chat_id] == "waiting_for_minor_admin_id":
+            make_minor_admin(user_id)
+            message_text = (f"✅ User {user_id} has been promoted to Minor Admin.")
+
+        else:
+            make_super_admin(user_id)
+
+            message_text = (
+                f"✅ User {user_id} has been promoted to Superior Admin.\n\n"
+                "⚠️ Note: Superior Admins have full control over the bot, including the ability to manage other admins."
+            )
+
+        
+        admin_state.pop(chat_id, None)
+
+        bot.send_message(chat_id, message_text, reply_markup=manage_admins_menu())
+
+
+    
+    @bot.message_handler(func = lambda m: m.text == "Remove Admin" and is_super_admin(m.from_user.id))
+    def remove_admin_handler(message):
+
+        bot.send_message(message.chat.id, "Which type of admin do you want to remove?", reply_markup=remove_admin_menu(message.from_user.id))
+
+
+    
+    @bot.message_handler(func = lambda m: m.text == "Minor Admin" and is_super_admin(m.from_user.id))
+    def remove_minor_admin_handler(message):
+
+        admin_state[message.chat.id] = "waiting_remove_minor_admin_id"
+
+        bot.send_message(message.chat.id, "Send the minor admin's Telegram ID.")
+
+
+
+    @bot.message_handler(func = lambda m: m.text == "Superior Admin" and is_owner(m.from_user.id))
+    def remove_superior_admin_handler(message):
+
+        admin_state[message.chat.id] = "waiting_remove_superior_admin_id"
+
+        bot.send_message(message.chat.id, "Send the superior admin's Telegram ID.")
+
+
+    
+    @bot.message_handler(func = lambda m: admin_state.get(m.chat.id) in ("waiting_remove_minor_admin_id", "waiting_remove_superior_admin_id"))
+    def receive_remove_admin_id(message):
+        chat_id = message.chat.id
+        text = message.text.strip()
+
+        if not text.isdigit():
+            bot.send_message(chat_id, "❌ Please send a valid Telegram ID.")
+            return
+
+        user_id = int(text)
+
+        if not user_exists(user_id):
+            bot.send_message(chat_id, "❌ That user has never started the bot.")
+            return
+
+        current_role = get_role(user_id)
+
+
+        # Rule1: Never remove the owner.
+        if user_id == OWNER_ID:
+            bot.send_message(chat_id, "❌ The Owner account cannot be removed.")
+            return
+        
+
+        # Rule2: Prevent self-removal.
+        if user_id == message.from_user.id:
+            bot.send_message(chat_id, "❌ You cannot remove yourself.")
+            return
+
+        if admin_state[chat_id] == "waiting_remove_minor_admin_id":
+            if current_role != "minor_admin":
+                bot.send_message(chat_id, "❌ That user is not a Minor Admin.")
+                return
+            remove_admin(user_id)
+            bot.send_message(chat_id, f"✅ User {user_id} has been removed as a Minor Admin.")
+
+        elif admin_state[chat_id] == "waiting_remove_superior_admin_id":
+            if current_role != "super_admin":
+                bot.send_message(chat_id, "❌ That user is not a Superior Admin.")
+                return
+            remove_admin(user_id)
+            bot.send_message(chat_id, f"✅ User {user_id} has been removed as a Superior Admin.")
+
+        admin_state.pop(chat_id, None)
+
+
+
+    @bot.message_handler(func=lambda m: m.text == "View Admins" and is_super_admin(m.from_user.id))
+    def view_admins_handler(message):
+
+        admins = get_all_admins()
+
+        text = "👥 Current Admins:\n\n"
+        for user_id, role in admins:
+            if role == "super_admin":
+                icon = "👑"
+
+            else:
+                icon = "🛡️"
+            text += f"User ID: {user_id}, Role:{icon} {role}\n"
+
+        bot.send_message(message.chat.id, text, reply_markup=manage_admins_menu())
