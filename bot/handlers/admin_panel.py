@@ -977,6 +977,11 @@ def register_admin_panel(bot):
     
     @bot.message_handler(func = lambda m: admin_management_state.get(m.chat.id) in ("waiting_remove_minor_admin_id", "waiting_remove_superior_admin_id"))
     def receive_remove_admin_id(message):
+        
+        print("REMOVE HANDLER")
+        print(admin_management_state)
+
+
         chat_id = message.chat.id
         text = message.text.strip()
 
