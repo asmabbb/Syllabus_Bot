@@ -61,9 +61,8 @@ def add_admin_menu(user_id):
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
 
     markup.add("Minor Admin")
-
-    if is_owner(user_id):
-        markup.add("Superior Admin")
+    markup.add("Superior Admin")
+    
     markup.add("⬅ Back")
 
     return markup
