@@ -50,7 +50,7 @@ def register_admin_panel(bot):
         bot.send_message(
             message.chat.id,
             "Admin Panel:",
-            reply_markup=admin_menu(message.from_user.id)
+            lambda: admin_menu(message.from_user.id)
         )
 
 
@@ -898,6 +898,9 @@ def register_admin_panel(bot):
     @bot.message_handler(func = lambda m: admin_management_state.get(m.chat.id) in ("waiting_for_minor_admin_id", "waiting_for_superior_admin_id") )
     def receive_admin_id(message):
 
+        print("RECEIVED ADMIN ID")
+        print(admin_management_state)
+
         chat_id = message.chat.id
         text = message.text.strip()
 
@@ -966,13 +969,13 @@ def register_admin_panel(bot):
     @bot.message_handler(func = lambda m: m.text == "Superior Admin" and is_owner(m.from_user.id))
     def remove_superior_admin_handler(message):
 
-        admin_state[message.chat.id] = "waiting_remove_superior_admin_id"
+        admin_management_state[message.chat.id] = "waiting_remove_superior_admin_id"
 
         bot.send_message(message.chat.id, "Send the superior admin's Telegram ID.")
 
 
     
-    @bot.message_handler(func = lambda m: admin_state.get(m.chat.id) in ("waiting_remove_minor_admin_id", "waiting_remove_superior_admin_id"))
+    @bot.message_handler(func = lambda m: admin_management_state.get(m.chat.id) in ("waiting_remove_minor_admin_id", "waiting_remove_superior_admin_id"))
     def receive_remove_admin_id(message):
         chat_id = message.chat.id
         text = message.text.strip()
@@ -1001,21 +1004,21 @@ def register_admin_panel(bot):
             bot.send_message(chat_id, "❌ You cannot remove yourself.")
             return
 
-        if admin_state[chat_id] == "waiting_remove_minor_admin_id":
+        if admin_management_state[chat_id] == "waiting_remove_minor_admin_id":
             if current_role != "minor_admin":
                 bot.send_message(chat_id, "❌ That user is not a Minor Admin.")
                 return
             remove_admin(user_id)
             bot.send_message(chat_id, f"✅ User {user_id} has been removed as a Minor Admin.")
 
-        elif admin_state[chat_id] == "waiting_remove_superior_admin_id":
+        elif admin_management_state[chat_id] == "waiting_remove_superior_admin_id":
             if current_role != "super_admin":
                 bot.send_message(chat_id, "❌ That user is not a Superior Admin.")
                 return
             remove_admin(user_id)
             bot.send_message(chat_id, f"✅ User {user_id} has been removed as a Superior Admin.")
 
-        admin_state.pop(chat_id, None)
+        admin_management_state.pop(chat_id, None)
 
 
 
