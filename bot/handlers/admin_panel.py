@@ -45,12 +45,12 @@ def register_admin_panel(bot):
         if not is_admin(message.from_user.id):
             return
         
-        push_history(message.chat.id, admin_menu)
+        push_history(message.chat.id,lambda: admin_menu(message.from_user.id))
 
         bot.send_message(
             message.chat.id,
             "Admin Panel:",
-            lambda: admin_menu(message.from_user.id)
+            reply_markup=admin_menu(message.from_user.id)
         )
 
 
