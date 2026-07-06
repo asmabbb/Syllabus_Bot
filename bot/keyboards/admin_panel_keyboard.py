@@ -73,10 +73,10 @@ def remove_admin_menu(user_id):
 
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
 
-    markup.add("Minor Admin")
+    markup.add("Minor Admins")
 
     if is_owner(user_id):
-        markup.add("Superior Admin")
+        markup.add("Superior Admins")
 
     markup.add("⬅ Back")
 

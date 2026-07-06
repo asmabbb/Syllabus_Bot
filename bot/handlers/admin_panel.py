@@ -877,7 +877,7 @@ def register_admin_panel(bot):
 
 
     
-    @bot.message_handler(func = lambda m: m.text == "Minor Admins" and is_super_admin(m.from_user.id))
+    @bot.message_handler(func = lambda m: m.text == "Minor Admin" and is_super_admin(m.from_user.id))
     def choose_minor_admin(message):
 
         admin_management_state[message.chat.id] = "waiting_for_minor_admin_id"
@@ -886,7 +886,7 @@ def register_admin_panel(bot):
 
 
 
-    @bot.message_handler(func = lambda m: m.text == "Superior Admins" and is_super_admin(m.from_user.id))
+    @bot.message_handler(func = lambda m: m.text == "Superior Admin" and is_super_admin(m.from_user.id))
     def choose_superior_admin(message):
 
         admin_management_state[message.chat.id] = "waiting_for_superior_admin_id"
@@ -926,8 +926,10 @@ def register_admin_panel(bot):
             return
 
 
-        if (current_role == "minor_admin" and admin_management_state[chat_id] == "waiting_for_minor_admin_id") or (current_role == "super_admin" and admin_management_state[chat_id] == "waiting_for_superior_admin_id"):
-            bot.send_message(chat_id, "That user is already a Minor Admin.")
+        if current_role == "minor_admin" and admin_management_state[chat_id] == "waiting_for_minor_admin_id":
+
+            bot.send_message(chat_id,
+                "That user is already a Minor Admin.")
             return
         
 
@@ -957,7 +959,7 @@ def register_admin_panel(bot):
 
 
     
-    @bot.message_handler(func = lambda m: m.text == "Minor Admin" and is_super_admin(m.from_user.id))
+    @bot.message_handler(func = lambda m: m.text == "Minor Admins" and is_super_admin(m.from_user.id))
     def remove_minor_admin_handler(message):
 
         admin_management_state[message.chat.id] = "waiting_remove_minor_admin_id"
@@ -966,7 +968,7 @@ def register_admin_panel(bot):
 
 
 
-    @bot.message_handler(func = lambda m: m.text == "Superior Admin" and is_owner(m.from_user.id))
+    @bot.message_handler(func = lambda m: m.text == "Superior Admins" and is_owner(m.from_user.id))
     def remove_superior_admin_handler(message):
 
         admin_management_state[message.chat.id] = "waiting_remove_superior_admin_id"
@@ -977,7 +979,7 @@ def register_admin_panel(bot):
     
     @bot.message_handler(func = lambda m: admin_management_state.get(m.chat.id) in ("waiting_remove_minor_admin_id", "waiting_remove_superior_admin_id"))
     def receive_remove_admin_id(message):
-        
+
         print("REMOVE HANDLER")
         print(admin_management_state)
 
